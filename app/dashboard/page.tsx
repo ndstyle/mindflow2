@@ -1,5 +1,7 @@
 import { Navbar } from "@/components/navbar"
 import { DashboardContent } from "@/components/dashboard-content"
+import MindMapGenerator from "@/components/MindMapGenerator"
+
 
 export default function DashboardPage() {
   return (
@@ -8,6 +10,10 @@ export default function DashboardPage() {
       <div className="relative z-10">
         <Navbar />
         <DashboardContent />
+        <main className="mt-8 px-4">
+          <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+          <MindMapGenerator />
+        </main>
       </div>
     </div>
   )
