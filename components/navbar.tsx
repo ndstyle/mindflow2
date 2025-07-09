@@ -11,21 +11,21 @@ export function Navbar() {
       </Link>
 
       <div className="hidden md:flex items-center space-x-8">
-        <Link href="/" className="text-white/80 hover:text-white transition-colors underline">
+        <Link href="/" className="text-white/80 hover:text-white transition-colors">
           Home
         </Link>
-        <Link href="/dashboard" className="text-white/80 hover:text-white transition-colors underline">
+        <Link href="/input" className="text-white/80 hover:text-white transition-colors">
+          Create
+        </Link>
+        <Link href="/dashboard" className="text-white/80 hover:text-white transition-colors">
           Dashboard
         </Link>
-        <Link href="/maps" className="text-white/80 hover:text-white transition-colors underline">
-          My Maps
+        <Link href="/history" className="text-white/80 hover:text-white transition-colors">
+          History
         </Link>
-        <Link href="/pricing" className="text-white/80 hover:text-white transition-colors underline">
-          Pricing
-        </Link>
-        <Button variant="outline" className="border-white/20 text-white hover:bg-white hover:text-black bg-transparent">
+        <Link href="/login" className="text-white/80 hover:text-white transition-colors">
           Sign In
-        </Button>
+        </Link>
       </div>
     </nav>
   )
