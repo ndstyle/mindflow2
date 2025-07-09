@@ -1,178 +1,171 @@
-'use client'
+"use client"
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import type React from "react"
+import { createContext, useContext, useEffect, useState } from "react"
+import type { User } from "@supabase/supabase-js"
+import { supabase, createUserProfile, getUserProfile, updateUserXP } from "@/lib/supabase"
 
-// Types
+interface UserProfile {
+  id: string
+  user_id: string
+  email: string
+  xp: number
+  level: number
+  streak_count: number
+  last_activity: string
+  created_at: string
+}
+
 interface AuthContextType {
   user: User | null
-  session: Session | null
+  userProfile: UserProfile | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null; data: { user: User | null; session: Session | null } }>
-  signOut: () => Promise<{ error: AuthError | null }>
-  resetPassword: (email: string) => Promise<{ error: AuthError | null }>
+  signUp: (email: string, password: string) => Promise<{ error?: string }>
+  signIn: (email: string, password: string) => Promise<{ error?: string }>
+  signOut: () => Promise<void>
+  addXP: (amount: number, reason: string) => Promise<{ xpGained?: number; newLevel?: boolean }>
+  refreshProfile: () => Promise<void>
 }
 
-interface AuthProviderProps {
-  children: React.ReactNode
-}
-
-// Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Auth Provider Component
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Initialize auth state
   useEffect(() => {
     // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        setSession(session)
-        setUser(session?.user ?? null)
-      } catch (error) {
-        console.error('Error getting initial session:', error)
-      } finally {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        loadUserProfile(session.user.id)
+      } else {
         setLoading(false)
       }
-    }
+    })
 
-    getInitialSession()
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        await loadUserProfile(session.user.id)
+      } else {
+        setUserProfile(null)
         setLoading(false)
       }
-    )
+    })
 
-    // Cleanup subscription
     return () => subscription.unsubscribe()
   }, [])
 
-  // Sign in method
-  const signIn = async (email: string, password: string) => {
+  const loadUserProfile = async (userId: string) => {
     try {
-      // First check if user is already signed in
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      
-      if (currentSession) {
-        // User is already signed in, sign them out first
-        await supabase.auth.signOut()
+      const { data, error } = await getUserProfile(userId)
+      if (error && error.message.includes("No rows")) {
+        // Profile doesn't exist, this is handled in signUp
+        setLoading(false)
+        return
       }
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      
-      if (error) {
-        return { error }
+      if (data) {
+        setUserProfile(data)
       }
-      
-      return { error: null }
     } catch (error) {
-      return { 
-        error: { 
-          message: 'An unexpected error occurred', 
-          name: 'UnexpectedError',
-          status: 500 
-        } as AuthError 
-      }
+      console.error("Error loading profile:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Sign up method
   const signUp = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
       })
-      
-      return { error, data }
-    } catch (error) {
-      return { 
-        error: { 
-          message: 'An unexpected error occurred', 
-          name: 'UnexpectedError',
-          status: 500 
-        } as AuthError,
-        data: { user: null, session: null }
+
+      if (error) {
+        return { error: error.message }
       }
+
+      if (data.user) {
+        // Create user profile
+        const { error: profileError } = await createUserProfile(data.user.id, email)
+        if (profileError) {
+          console.error("Error creating profile:", profileError)
+        } else {
+          await loadUserProfile(data.user.id)
+        }
+      }
+
+      return {}
+    } catch (error) {
+      return { error: "An unexpected error occurred" }
     }
   }
 
-  // Sign out method
-  const signOut = async () => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signOut()
-      return { error }
-    } catch (error) {
-      return { 
-        error: { 
-          message: 'An unexpected error occurred', 
-          name: 'UnexpectedError',
-          status: 500 
-        } as AuthError 
-      }
-    }
-  }
-
-  // Reset password method
-  const resetPassword = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
-      
-      return { error }
-    } catch (error) {
-      return { 
-        error: { 
-          message: 'An unexpected error occurred', 
-          name: 'UnexpectedError',
-          status: 500 
-        } as AuthError 
+
+      if (error) {
+        return { error: error.message }
       }
+
+      return {}
+    } catch (error) {
+      return { error: "An unexpected error occurred" }
     }
   }
 
-  const value: AuthContextType = {
-    user,
-    session,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    resetPassword,
+  const signOut = async () => {
+    await supabase.auth.signOut()
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  const addXP = async (amount: number, reason: string) => {
+    if (!user) return {}
+
+    try {
+      const result = await updateUserXP(user.id, amount, reason)
+      if (result.data) {
+        setUserProfile(result.data)
+      }
+      return { xpGained: result.xpGained, newLevel: result.newLevel }
+    } catch (error) {
+      console.error("Error adding XP:", error)
+      return {}
+    }
+  }
+
+  const refreshProfile = async () => {
+    if (user) {
+      await loadUserProfile(user.id)
+    }
+  }
+
+  const value = {
+    user,
+    userProfile,
+    loading,
+    signUp,
+    signIn,
+    signOut,
+    addXP,
+    refreshProfile,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-// Custom hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext)
-  
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error("useAuth must be used within an AuthProvider")
   }
-  
   return context
 }
-
-// Export the context for direct access if needed
-export { AuthContext } 

@@ -1,36 +1,38 @@
-import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { NextResponse } from "next/server"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
-export async function POST(request: Request) {
-  try {
-    const { email, password } = await request.json()
-    
-    // Test sign in
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    
-    if (error) {
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-        code: error.status,
-        details: error
-      }, { status: 400 })
-    }
-    
+export async function GET() {
+  if (!isSupabaseConfigured()) {
     return NextResponse.json({
-      success: true,
-      user: data.user?.email,
-      session: !!data.session
+      configured: false,
+      message: "Supabase environment variables not configured",
     })
-    
+  }
+
+  if (!supabase) {
+    return NextResponse.json({
+      configured: false,
+      message: "Supabase client not initialized",
+    })
+  }
+
+  try {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    return NextResponse.json({
+      configured: true,
+      authenticated: !!user,
+      user: user ? { id: user.id, email: user.email } : null,
+      error: error?.message || null,
+    })
   } catch (error) {
     return NextResponse.json({
-      success: false,
-      error: 'Unexpected error',
-      details: error
-    }, { status: 500 })
+      configured: true,
+      authenticated: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    })
   }
-} 
+}

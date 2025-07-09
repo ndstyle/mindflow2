@@ -1,238 +1,235 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
-import ProtectedRoute from '@/components/ProtectedRoute'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Send, 
-  Loader2, 
-  FileText, 
-  AlertCircle, 
-  CheckCircle,
-  ArrowRight
-} from 'lucide-react'
+import type React from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/context/AuthContext"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, Brain, Sparkles, AlertCircle } from "lucide-react"
+import { VoiceInput } from "@/components/VoiceInput"
+import { XPDisplay } from "@/components/XPDisplay"
+import { XPNotification } from "@/components/XPNotification"
+import Navbar from "@/components/navbar"
 
 export default function InputPage() {
-  const { user } = useAuth()
-  const router = useRouter()
-  const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [input, setInput] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [xpNotification, setXpNotification] = useState<{
+    xpGained: number
+    reason: string
+    newLevel?: boolean
+  } | null>(null)
 
-  // Example input for demonstration
-  const exampleInput = `Project Planning Notes:
+  const { user, addXP } = useAuth()
+  const router = useRouter()
 
-- Need to build a new website
-  - Frontend: React, TypeScript, Tailwind CSS
-  - Backend: Node.js, Express, MongoDB
-  - Features: user authentication, dashboard, API integration
-  - Timeline: 3 months
-  - Budget: $15,000
-
-Marketing Strategy:
-- Social media campaigns
-- SEO optimization
-- Content marketing
-- Email newsletters
-
-Team Structure:
-- Project Manager
-- Frontend Developer
-- Backend Developer
-- UI/UX Designer
-- QA Tester`
+  const handleVoiceTranscript = (transcript: string) => {
+    setInput(transcript)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!input.trim()) {
-      setError('Please enter some notes to generate a mind map.')
-      return
-    }
+    if (!input.trim()) return
 
-    setIsLoading(true)
+    setIsGenerating(true)
     setError(null)
-    setSuccess(false)
 
     try {
-      const response = await fetch('/api/generate-mindmap', {
-        method: 'POST',
+      const response = await fetch("/api/generate-mindmap", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          notes: input.trim(),
-        }),
+        body: JSON.stringify({ input: input.trim() }),
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error("Failed to generate mind map")
       }
 
       const data = await response.json()
-      
-      // Save to database if user is logged in
-      if (user) {
-        const saveResponse = await fetch('/api/mindmaps', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            title: `Mind Map - ${new Date().toLocaleDateString()}`,
-            description: input.trim().substring(0, 100) + '...',
-            nodes: data.nodes || [],
-            edges: data.edges || [],
-            metadata: data.metadata || {}
-          }),
-        })
 
-        if (saveResponse.ok) {
-          const savedData = await saveResponse.json()
-          router.push(`/map/${savedData.id}`)
-        } else {
-          // Still show the mind map even if save fails
-          router.push(`/map/temp?data=${encodeURIComponent(JSON.stringify(data))}`)
+      // Award XP for creating a mind map
+      if (user) {
+        const result = await addXP(10, "Mind map created")
+        if (result.xpGained) {
+          setXpNotification({
+            xpGained: result.xpGained,
+            reason: "Mind map created",
+            newLevel: result.newLevel,
+          })
         }
-      } else {
-        // For non-logged in users, pass data via URL
-        router.push(`/map/temp?data=${encodeURIComponent(JSON.stringify(data))}`)
       }
-      
-      setSuccess(true)
+
+      // Redirect to the generated mind map
+      router.push(`/map/${data.id}`)
     } catch (err) {
-      console.error('Error generating mind map:', err)
-      setError(err instanceof Error ? err.message : 'Failed to generate mind map. Please try again.')
+      setError("Failed to generate mind map. Please try again.")
+      console.error("Error generating mind map:", err)
     } finally {
-      setIsLoading(false)
+      setIsGenerating(false)
     }
   }
 
-  const loadExample = () => {
-    setInput(exampleInput)
-    setError(null)
-  }
-
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-black text-white">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a1a1a_1px,transparent_1px),linear-gradient(to_bottom,#1a1a1a_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
-        
-        <div className="relative z-10 max-w-4xl mx-auto px-4 py-12">
+    <div className="min-h-screen bg-black text-white">
+      <Navbar />
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-4">Transform Your Notes</h1>
-            <p className="text-xl text-gray-300">
-              Paste your messy notes and let AI organize them into a structured mind map
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Brain className="w-8 h-8 text-blue-400" />
+              <h1 className="text-3xl font-bold">Create Mind Map</h1>
+              <Sparkles className="w-6 h-6 text-yellow-400" />
+            </div>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              Transform your messy thoughts into structured mind maps. Type or speak your ideas, and watch AI instantly
+              organize them into beautiful, interactive visualizations.
             </p>
           </div>
 
-          {/* Input Form */}
-          <Card className="bg-gray-900/50 border-gray-800">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Your Notes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Paste your notes, ideas, or thoughts here... The AI will organize them into a structured mind map."
-                    className="min-h-[300px] bg-gray-800/50 border-gray-700 text-white placeholder-gray-400"
-                    disabled={isLoading}
-                  />
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <Button 
-                    type="submit" 
-                    disabled={isLoading || !input.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 px-8"
-                    size="lg"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Generating Mind Map...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-5 h-5 mr-2" />
-                        Generate Mind Map
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Input Area */}
+            <div className="lg:col-span-2">
+              <Card className="bg-gray-900/50 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-blue-400" />
+                    Your Ideas
+                  </CardTitle>
+                  <CardDescription>
+                    Paste your notes, thoughts, or research. Or use voice input to speak naturally.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Voice Input */}
+                  <div className="flex justify-center py-4 border-b border-gray-800">
+                    <VoiceInput onTranscript={handleVoiceTranscript} disabled={isGenerating} />
+                  </div>
+
+                  {/* Text Input */}
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <Textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Paste your messy notes here, or use voice input above...
+
+Example:
+- Project planning for mobile app
+- User research findings
+- Feature requirements
+- Technical architecture
+- Marketing strategy"
+                      className="min-h-[300px] bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 resize-none"
+                      disabled={isGenerating}
+                    />
+
+                    {error && (
+                      <Alert variant="destructive" className="bg-red-500/10 border-red-500/20">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                      </Alert>
                     )}
-                  </Button>
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={loadExample}
-                    disabled={isLoading}
-                  >
-                    Load Example
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
 
-          {/* Error Alert */}
-          {error && (
-            <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 mt-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+                    <Button
+                      type="submit"
+                      className="w-full bg-blue-600 hover:bg-blue-700 h-12 text-lg"
+                      disabled={!input.trim() || isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Generating Mind Map...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-5 w-5" />
+                          Generate Mind Map (+10 XP)
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Success Alert */}
-          {success && (
-            <Alert className="bg-green-500/10 border-green-500/20 mt-6">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                Mind map generated successfully! Redirecting to visualization...
-              </AlertDescription>
-            </Alert>
-          )}
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* XP Display */}
+              {user && <XPDisplay />}
 
-          {/* Features */}
-          <div className="grid md:grid-cols-3 gap-6 mt-12">
-            <Card className="bg-gray-900/50 border-gray-800 text-center p-6">
-              <FileText className="w-12 h-12 text-blue-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Paste Any Notes</h3>
-              <p className="text-gray-400 text-sm">
-                Bullet points, paragraphs, or messy thoughts - we'll organize them all
-              </p>
-            </Card>
-            
-            <Card className="bg-gray-900/50 border-gray-800 text-center p-6">
-              <Send className="w-12 h-12 text-green-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">AI Processing</h3>
-              <p className="text-gray-400 text-sm">
-                Our AI analyzes your content and creates structured relationships
-              </p>
-            </Card>
-            
-            <Card className="bg-gray-900/50 border-gray-800 text-center p-6">
-              <ArrowRight className="w-12 h-12 text-purple-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Visual Mind Map</h3>
-              <p className="text-gray-400 text-sm">
-                View and edit your organized thoughts in an interactive mind map
-              </p>
-            </Card>
+              {/* Tips */}
+              <Card className="bg-gray-900/50 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-lg">💡 Pro Tips</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-400">🎤</span>
+                    <span>Use voice input for natural idea capture (+3 XP)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-400">📝</span>
+                    <span>Include bullet points, keywords, and concepts</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-400">🧠</span>
+                    <span>AI works best with 50-500 words of content</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-400">⚡</span>
+                    <span>Create mind maps daily to build your streak</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* XP Rewards */}
+              <Card className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-800/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-yellow-400" />
+                    Earn XP
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Voice input</span>
+                    <span className="text-blue-400">+3 XP</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Create mind map</span>
+                    <span className="text-green-400">+10 XP</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Daily streak</span>
+                    <span className="text-orange-400">+5 XP</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Edit nodes</span>
+                    <span className="text-purple-400">+2 XP</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
-    </ProtectedRoute>
+
+      {/* XP Notification */}
+      {xpNotification && (
+        <XPNotification
+          xpGained={xpNotification.xpGained}
+          reason={xpNotification.reason}
+          newLevel={xpNotification.newLevel}
+          onComplete={() => setXpNotification(null)}
+        />
+      )}
+    </div>
   )
-} 
+}

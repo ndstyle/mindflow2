@@ -1,116 +1,202 @@
 "use client"
 
-import { Card } from "@/components/ui/card"
+import { useAuth } from "@/context/AuthContext"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, FileText, Calendar, Share2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Brain, Plus, History, Star, Zap, Flame, Target, TrendingUp, Award, Calendar } from "lucide-react"
+import Link from "next/link"
+import { getUserLevel, getXPToNextLevel } from "@/lib/supabase"
 
-export function DashboardContent() {
-  const recentMaps = [
-    {
-      id: 1,
-      title: "Marketing Campaign Q2",
-      createdAt: "2 hours ago",
-      nodes: 12,
-      type: "Mind Map",
-    },
-    {
-      id: 2,
-      title: "Product Launch Strategy",
-      createdAt: "1 day ago",
-      nodes: 8,
-      type: "Project Plan",
-    },
-    {
-      id: 3,
-      title: "Team Meeting Notes",
-      createdAt: "3 days ago",
-      nodes: 15,
-      type: "Mind Map",
-    },
-  ]
+export default function DashboardContent() {
+  const { user, userProfile, isDemoMode } = useAuth()
+
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+          <p>loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const currentLevel = getUserLevel(userProfile.xp)
+  const xpToNext = getXPToNextLevel(userProfile.xp)
+  const progressPercent =
+    xpToNext > 0
+      ? ((userProfile.xp - currentLevel.minXP) / (currentLevel.minXP + xpToNext - currentLevel.minXP)) * 100
+      : 100
 
   return (
-    <div className="px-8 py-12 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-          <p className="text-white/70">Manage your mind maps and project plans</p>
+    <div className="min-h-screen bg-black text-white">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a1a1a_1px,transparent_1px),linear-gradient(to_bottom,#1a1a1a_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">welcome back, {user?.email?.split("@")[0] || "mind mapper"}!</h1>
+          <p className="text-gray-400">ready to transform more ideas into beautiful mind maps?</p>
         </div>
-        <Button className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600">
-          <Plus className="mr-2 w-4 h-4" />
-          Create New Map
-        </Button>
-      </div>
 
-      <div className="grid md:grid-cols-4 gap-6 mb-12">
-        <Card className="bg-white/5 border-white/10 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-2xl font-bold">12</p>
-              <p className="text-white/60 text-sm">Total Maps</p>
-            </div>
-            <FileText className="w-8 h-8 text-blue-400" />
-          </div>
-        </Card>
+        {/* Level & XP Card */}
+        <Card className="bg-gray-900/50 border-gray-800 mb-8">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Star className="w-8 h-8" style={{ color: currentLevel.color }} />
+                <div>
+                  <Badge
+                    variant="outline"
+                    className="text-lg px-3 py-1"
+                    style={{ borderColor: currentLevel.color, color: currentLevel.color }}
+                  >
+                    {currentLevel.name}
+                  </Badge>
+                  <p className="text-sm text-gray-400 mt-1">level {currentLevel.level}</p>
+                </div>
+              </div>
 
-        <Card className="bg-white/5 border-white/10 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-2xl font-bold">5</p>
-              <p className="text-white/60 text-sm">This Week</p>
-            </div>
-            <Calendar className="w-8 h-8 text-green-400" />
-          </div>
-        </Card>
-
-        <Card className="bg-white/5 border-white/10 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-2xl font-bold">8</p>
-              <p className="text-white/60 text-sm">Shared</p>
-            </div>
-            <Share2 className="w-8 h-8 text-purple-400" />
-          </div>
-        </Card>
-
-        <Card className="bg-white/5 border-white/10 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-2xl font-bold">156</p>
-              <p className="text-white/60 text-sm">Total Nodes</p>
-            </div>
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full" />
-          </div>
-        </Card>
-      </div>
-
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Recent Mind Maps</h2>
-        <div className="space-y-4">
-          {recentMaps.map((map) => (
-            <Card
-              key={map.id}
-              className="bg-white/5 border-white/10 p-6 hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-white" />
-                  </div>
+              <div className="flex items-center gap-6 text-right">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-yellow-400" />
                   <div>
-                    <h3 className="font-semibold text-lg">{map.title}</h3>
-                    <p className="text-white/60 text-sm">
-                      {map.nodes} nodes • {map.type} • Created {map.createdAt}
-                    </p>
+                    <p className="text-2xl font-bold">{userProfile.xp}</p>
+                    <p className="text-xs text-gray-400">total XP</p>
                   </div>
                 </div>
-                <Button variant="outline" className="border-white/20 text-white hover:bg-white/10 bg-transparent">
-                  Open
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-orange-400" />
+                  <div>
+                    <p className="text-2xl font-bold">{userProfile.streak}</p>
+                    <p className="text-xs text-gray-400">day streak</p>
+                  </div>
+                </div>
               </div>
-            </Card>
-          ))}
+            </div>
+
+            {xpToNext > 0 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-400">
+                  <span>progress to level {currentLevel.level + 1}</span>
+                  <span>{xpToNext} XP needed</span>
+                </div>
+                <Progress value={progressPercent} className="h-3 bg-gray-800" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Stats Grid */}
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6 text-center">
+              <Brain className="w-8 h-8 text-blue-400 mx-auto mb-3" />
+              <p className="text-2xl font-bold">{userProfile.total_mindmaps}</p>
+              <p className="text-sm text-gray-400">mind maps created</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6 text-center">
+              <Target className="w-8 h-8 text-green-400 mx-auto mb-3" />
+              <p className="text-2xl font-bold">{userProfile.total_nodes}</p>
+              <p className="text-sm text-gray-400">ideas organized</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6 text-center">
+              <TrendingUp className="w-8 h-8 text-purple-400 mx-auto mb-3" />
+              <p className="text-2xl font-bold">{currentLevel.level}</p>
+              <p className="text-sm text-gray-400">current level</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-6 text-center">
+              <Calendar className="w-8 h-8 text-orange-400 mx-auto mb-3" />
+              <p className="text-2xl font-bold">{userProfile.streak}</p>
+              <p className="text-sm text-gray-400">day streak</p>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Quick Actions */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/20 hover:border-blue-500/40 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="w-5 h-5" />
+                create new mind map
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-300 mb-4">transform your ideas into structured visual maps with AI assistance</p>
+              <Link href="/input">
+                <Button className="bg-blue-600 hover:bg-blue-700 w-full">start creating (+10 XP)</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-500/10 to-teal-500/10 border-green-500/20 hover:border-green-500/40 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="w-5 h-5" />
+                view your mind maps
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-300 mb-4">explore and edit your previously created mind maps</p>
+              <Link href="/history">
+                <Button variant="outline" className="border-green-500/50 hover:bg-green-500/10 w-full bg-transparent">
+                  browse history
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Achievement Hints */}
+        <Card className="bg-gray-900/50 border-gray-800">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-yellow-400" />
+              ways to earn XP
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                <Plus className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+                <p className="font-medium">create mind map</p>
+                <p className="text-sm text-gray-400">+10 XP</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                <Target className="w-6 h-6 text-green-400 mx-auto mb-2" />
+                <p className="font-medium">edit nodes</p>
+                <p className="text-sm text-gray-400">+2 XP each</p>
+              </div>
+              <div className="text-center p-4 bg-gray-800/50 rounded-lg">
+                <Flame className="w-6 h-6 text-orange-400 mx-auto mb-2" />
+                <p className="font-medium">daily streak</p>
+                <p className="text-sm text-gray-400">+5 XP bonus</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {isDemoMode && (
+          <Card className="bg-blue-500/10 border-blue-500/20 mt-6">
+            <CardContent className="p-4">
+              <p className="text-blue-300 text-center">
+                🎮 you're in demo mode! your progress is saved locally. connect supabase to sync across devices.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

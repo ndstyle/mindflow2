@@ -55,4 +55,4 @@ CREATE TRIGGER update_mind_maps_updated_at
 --   ('Sample Project Plan', 'A sample project management mind map', 
 --    '[{"id": "1", "label": "Project Management", "x": 400, "y": 300}]'::jsonb,
 --    '[]'::jsonb,
---    (SELECT id FROM auth.users LIMIT 1)); 
+--    (SELECT id FROM auth.users LIMIT 1));

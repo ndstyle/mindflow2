@@ -338,4 +338,4 @@ export default function MindMapVisualizer({
       </div>
     </div>
   )
-} 
+}

@@ -5,4 +5,3 @@ export default function MindMapDisplay({ mindMap }: { mindMap: any }) {
       </pre>
     );
   }
-  

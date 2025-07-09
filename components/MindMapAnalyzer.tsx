@@ -505,4 +505,4 @@ export default function MindMapAnalyzer() {
       )}
     </div>
   )
-} 
+}

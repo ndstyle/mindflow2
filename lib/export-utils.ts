@@ -105,4 +105,4 @@ export const copyToClipboard = async (data: MindMapData) => {
 export const generateShareableLink = (data: MindMapData): string => {
   const encodedData = encodeURIComponent(JSON.stringify(data))
   return `${window.location.origin}/map/temp?data=${encodedData}`
-} 
+}

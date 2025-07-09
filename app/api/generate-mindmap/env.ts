@@ -9,4 +9,3 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     });
   }
-  

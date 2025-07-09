@@ -1,194 +1,96 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { OpenAI } from 'openai'
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { type NextRequest, NextResponse } from "next/server"
+import { generateText } from "ai"
+import { openai } from "@ai-sdk/openai"
 
 export async function POST(request: NextRequest) {
   try {
     const { notes } = await request.json()
 
-    if (!notes || typeof notes !== 'string') {
-      return NextResponse.json(
-        { error: 'Notes are required and must be a string' },
-        { status: 400 }
-      )
+    if (!notes || typeof notes !== "string") {
+      return NextResponse.json({ error: "notes are required" }, { status: 400 })
     }
 
-    // Create a prompt for mind map generation
-    const prompt = `Analyze the following notes and create a structured mind map. 
-    
-Notes:
-${notes}
+    // Check if OpenAI API key is configured
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey || apiKey === "your-openai-api-key") {
+      // Return fallback data for demo mode
+      return NextResponse.json({
+        nodes: [
+          { id: "1", label: "main topic", x: 0, y: 0, level: 0 },
+          { id: "2", label: "subtopic 1", x: 200, y: -100, level: 1 },
+          { id: "3", label: "subtopic 2", x: 200, y: 100, level: 1 },
+          { id: "4", label: "detail 1", x: 400, y: -150, level: 2 },
+          { id: "5", label: "detail 2", x: 400, y: -50, level: 2 },
+        ],
+        edges: [
+          { id: "e1-2", source: "1", target: "2" },
+          { id: "e1-3", source: "1", target: "3" },
+          { id: "e2-4", source: "2", target: "4" },
+          { id: "e2-5", source: "2", target: "5" },
+        ],
+        metadata: {
+          title: "demo mind map",
+          description: "generated from your notes",
+          created_at: new Date().toISOString(),
+        },
+      })
+    }
 
-Please create a mind map with the following structure:
-1. Identify the main topic or central idea
-2. Extract key concepts and organize them hierarchically
-3. Create logical connections between related concepts
-4. Use clear, concise labels for each node
+    // Use OpenAI to generate mind map structure
+    const { text } = await generateText({
+      model: openai("gpt-4o"),
+      system: `you are a mind mapping expert. analyze the provided notes and create a structured mind map.
 
-Return the result as a JSON object with this exact structure:
+return a JSON object with this exact structure:
 {
   "nodes": [
-    {
-      "id": "1",
-      "label": "Main Topic",
-      "position": { "x": 400, "y": 300 },
-      "data": { "label": "Main Topic" }
-    }
+    {"id": "1", "label": "main topic", "x": 0, "y": 0, "level": 0},
+    {"id": "2", "label": "subtopic", "x": 200, "y": -100, "level": 1}
   ],
   "edges": [
-    {
-      "id": "edge-1-2",
-      "source": "1",
-      "target": "2"
-    }
+    {"id": "e1-2", "source": "1", "target": "2"}
   ],
   "metadata": {
-    "title": "Generated Mind Map",
-    "description": "AI-generated from user notes"
+    "title": "mind map title",
+    "description": "brief description"
   }
 }
 
-Ensure all nodes have unique IDs and all edges reference valid node IDs. Position nodes in a logical layout with the main topic in the center.`
-
-    // Call OpenAI API
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert at analyzing text and creating structured mind maps. Always return valid JSON that can be parsed by JavaScript."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 2000,
+rules:
+- create 5-15 nodes maximum
+- use hierarchical levels (0=main, 1=subtopic, 2=detail)
+- position nodes with x,y coordinates for visual layout
+- connect related concepts with edges
+- extract key themes and organize them logically
+- make labels concise but meaningful`,
+      prompt: `analyze these notes and create a mind map structure:\n\n${notes}`,
     })
 
-    const responseText = completion.choices[0]?.message?.content
-
-    if (!responseText) {
-      throw new Error('No response from AI')
-    }
-
-    // Try to extract JSON from the response
-    let mindMapData
     try {
-      // Look for JSON in the response (it might be wrapped in markdown)
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        mindMapData = JSON.parse(jsonMatch[0])
-      } else {
-        throw new Error('No JSON found in response')
-      }
+      const mindMapData = JSON.parse(text)
+      return NextResponse.json(mindMapData)
     } catch (parseError) {
-      console.error('Failed to parse AI response:', responseText)
-      // Fallback: create a simple mind map structure
-      mindMapData = createFallbackMindMap(notes)
+      console.error("failed to parse ai response:", parseError)
+      // Return fallback structure if parsing fails
+      return NextResponse.json({
+        nodes: [
+          { id: "1", label: "main concept", x: 0, y: 0, level: 0 },
+          { id: "2", label: "key point 1", x: 200, y: -100, level: 1 },
+          { id: "3", label: "key point 2", x: 200, y: 100, level: 1 },
+        ],
+        edges: [
+          { id: "e1-2", source: "1", target: "2" },
+          { id: "e1-3", source: "1", target: "3" },
+        ],
+        metadata: {
+          title: "generated mind map",
+          description: "organized from your notes",
+          created_at: new Date().toISOString(),
+        },
+      })
     }
-
-    // Validate and clean the data
-    const validatedData = validateMindMapData(mindMapData)
-
-    return NextResponse.json(validatedData)
-
   } catch (error) {
-    console.error('Error generating mind map:', error)
-    
-    // Return a fallback mind map if AI fails
-    const fallbackData = createFallbackMindMap('Notes processing failed')
-    
-    return NextResponse.json(fallbackData, { status: 200 })
+    console.error("error generating mind map:", error)
+    return NextResponse.json({ error: "failed to generate mind map" }, { status: 500 })
   }
-}
-
-function createFallbackMindMap(notes: string) {
-  // Create a simple fallback mind map
-  const lines = notes.split('\n').filter(line => line.trim().length > 0)
-  const nodes: any[] = []
-  const edges: any[] = []
-
-  // Create main topic node
-  nodes.push({
-    id: "1",
-    label: "Main Topic",
-    position: { x: 400, y: 300 },
-    data: { label: "Main Topic" }
-  })
-
-  // Create nodes for each line
-  lines.slice(0, 5).forEach((line, index) => {
-    const nodeId = (index + 2).toString()
-    const angle = (index * 72) * (Math.PI / 180) // Distribute nodes in a circle
-    const radius = 200
-    
-    nodes.push({
-      id: nodeId,
-      label: line.trim().substring(0, 50),
-      position: { 
-        x: 400 + radius * Math.cos(angle), 
-        y: 300 + radius * Math.sin(angle) 
-      },
-      data: { label: line.trim().substring(0, 50) }
-    })
-
-    edges.push({
-      id: `edge-1-${nodeId}`,
-      source: "1",
-      target: nodeId
-    })
-  })
-
-  return {
-    nodes,
-    edges,
-    metadata: {
-      title: "Generated Mind Map",
-      description: "AI-generated from user notes"
-    }
-  }
-}
-
-function validateMindMapData(data: any) {
-  // Ensure required fields exist
-  if (!data.nodes || !Array.isArray(data.nodes)) {
-    data.nodes = []
-  }
-
-  if (!data.edges || !Array.isArray(data.edges)) {
-    data.edges = []
-  }
-
-  if (!data.metadata) {
-    data.metadata = {
-      title: "Generated Mind Map",
-      description: "AI-generated from user notes"
-    }
-  }
-
-  // Ensure all nodes have required fields
-  data.nodes = data.nodes.map((node: any, index: number) => ({
-    id: node.id || `node-${index + 1}`,
-    label: node.label || node.data?.label || "Untitled",
-    position: node.position || { x: Math.random() * 800, y: Math.random() * 600 },
-    data: {
-      label: node.label || node.data?.label || "Untitled",
-      ...node.data
-    }
-  }))
-
-  // Ensure all edges have required fields
-  data.edges = data.edges.map((edge: any, index: number) => ({
-    id: edge.id || `edge-${index + 1}`,
-    source: edge.source,
-    target: edge.target
-  }))
-
-  return data
 }

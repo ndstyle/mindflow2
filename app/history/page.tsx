@@ -297,4 +297,4 @@ export default function HistoryPage() {
       </div>
     </ProtectedRoute>
   )
-} 
+}
