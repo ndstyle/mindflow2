@@ -53,7 +53,7 @@ export default function HistoryPage() {
       setError(null)
 
       const { data, error } = await supabase
-        .from('mind_maps')
+        .from('mindmaps')
         .select('*')
         .eq('user_id', user?.id)
         .order('updated_at', { ascending: false })
@@ -78,7 +78,7 @@ export default function HistoryPage() {
 
     try {
       const { error } = await supabase
-        .from('mind_maps')
+        .from('mindmaps')
         .delete()
         .eq('id', id)
         .eq('user_id', user?.id)

@@ -54,7 +54,7 @@ export default function InputPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ notes: input }),
       })
 
       if (!response.ok) {

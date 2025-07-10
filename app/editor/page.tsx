@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 
 interface Node {
   id: string
@@ -40,6 +41,7 @@ export default function EditorPage() {
   const [showGrid, setShowGrid] = useState(true)
   const [zoom, setZoom] = useState(1)
   const router = useRouter()
+  const { user } = useAuth()
 
   // Add new node
   const addNode = () => {
@@ -97,11 +99,26 @@ export default function EditorPage() {
   // Save mind map
   const saveMindMap = async () => {
     try {
-      // TODO: Implement save to database
-      console.log('Saving mind map:', { nodes, edges })
-      // Show success message
+      if (!user) {
+        alert('You must be logged in to save a mind map.')
+        return
+      }
+      const title = prompt('Enter a title for your mind map:')
+      if (!title) return
+      const content = JSON.stringify({ nodes, edges })
+      const node_count = nodes.length
+      const response = await fetch('/api/mindmaps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, node_count })
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to save mind map')
+      }
+      alert('Mind map saved successfully!')
     } catch (error) {
-      console.error('Error saving mind map:', error)
+      alert('Error saving mind map: ' + (error instanceof Error ? error.message : error))
     }
   }
 
