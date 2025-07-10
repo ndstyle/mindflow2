@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: mindmaps, error } = await supabase
-      .from("mindmaps")
+    const { data: mind_maps, error } = await supabase
+      .from("mind_maps")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Failed to fetch mind maps" }, { status: 500 })
     }
 
-    return NextResponse.json({ mindmaps })
+    return NextResponse.json({ mind_maps })
   } catch (error) {
     console.error("Error fetching mind maps:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: mindmap, error } = await supabase
-      .from("mindmaps")
+      .from("mind_maps")
       .insert({
         user_id: user.id,
         title,

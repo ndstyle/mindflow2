@@ -9,8 +9,17 @@ import { Brain, Plus, History, Star, Zap, Flame, Target, TrendingUp, Award, Cale
 import Link from "next/link"
 import { getUserLevel, getXPToNextLevel } from "@/lib/supabase"
 
-export default function DashboardContent() {
-  const { user, userProfile, isDemoMode } = useAuth()
+interface DashboardContentProps {
+  user?: any
+  isDemoMode?: boolean
+  userProfile?: any
+}
+
+export default function DashboardContent(props: DashboardContentProps) {
+  const context = useAuth()
+  const user = props.user ?? context.user
+  const userProfile = props.userProfile ?? context.userProfile
+  const isDemoMode = props.isDemoMode ?? context.isDemoMode
 
   if (!userProfile) {
     return (
@@ -94,7 +103,7 @@ export default function DashboardContent() {
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-6 text-center">
               <Brain className="w-8 h-8 text-blue-400 mx-auto mb-3" />
-              <p className="text-2xl font-bold">{userProfile.total_mindmaps}</p>
+              <p className="text-2xl font-bold">{userProfile.total_mind_maps}</p>
               <p className="text-sm text-gray-400">mind maps created</p>
             </CardContent>
           </Card>

@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
+// @ts-ignore
+import { v4 as uuidv4 } from 'uuid'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -61,6 +63,10 @@ export function calculateStreak(lastActivity: string): number {
   }
 }
 
+export function isSupabaseConfigured() {
+  return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.length > 0 && supabaseAnonKey.length > 0)
+}
+
 // Database functions
 export async function createUserProfile(userId: string, email: string) {
   const { data, error } = await supabase
@@ -117,5 +123,35 @@ export async function updateUserXP(userId: string, xpToAdd: number, reason: stri
     return null
   }
 
+  return data
+}
+
+export async function makeMindMapPublic(id: string, userId: string) {
+  const share_token = uuidv4()
+  const { data, error } = await supabase
+    .from('mind_maps')
+    .update({ is_public: true, share_token })
+    .eq('id', id)
+    .eq('user_id', userId)
+    .select()
+    .single()
+  if (error) {
+    console.error('Error making mind map public:', error)
+    return null
+  }
+  return data
+}
+
+export async function getMindMapByShareToken(token: string) {
+  const { data, error } = await supabase
+    .from('mind_maps')
+    .select('*')
+    .eq('share_token', token)
+    .eq('is_public', true)
+    .single()
+  if (error) {
+    console.error('Error fetching mind map by share token:', error)
+    return null
+  }
   return data
 }

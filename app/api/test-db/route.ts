@@ -17,8 +17,8 @@ export async function GET() {
   }
 
   try {
-    // Test database connection by querying the mindmaps table
-    const { data, error } = await supabase.from("mindmaps").select("count(*)").limit(1)
+    // Test database connection by querying the mind_maps table
+    const { data, error } = await supabase.from("mind_maps").select("count(*)").limit(1)
 
     if (error) {
       return NextResponse.json({

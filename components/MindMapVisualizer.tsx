@@ -28,8 +28,13 @@ import {
   Eye,
   Trash2,
   Plus,
-  Settings
+  Settings,
+  Share2,
+  Check
 } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { XP_REWARDS, makeMindMapPublic } from '@/lib/supabase'
+import { exportToPDF } from '@/lib/export-utils'
 
 interface MindMapNode extends Node {
   data: {
@@ -45,6 +50,7 @@ interface MindMapData {
   metadata?: {
     title?: string
     description?: string
+    id?: string // Added for public sharing
   }
 }
 
@@ -128,6 +134,14 @@ export default function MindMapVisualizer({
   )
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
   const [showControls, setShowControls] = useState(true)
+  const { addXP, user } = useAuth()
+  const [exportingPDF, setExportingPDF] = useState(false)
+  const mapRef = useRef<HTMLDivElement>(null)
+  const [shareStatus, setShareStatus] = useState<'idle' | 'sharing' | 'success' | 'error'>("idle")
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [publicLink, setPublicLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [showShare, setShowShare] = useState(false)
 
   // Convert nodes to custom type
   useEffect(() => {
@@ -152,6 +166,8 @@ export default function MindMapVisualizer({
   const handleNodeChanges = useCallback(
     (changes: NodeChange[]) => {
       onNodesChange(changes)
+      // Award XP for edit
+      addXP(XP_REWARDS.EDIT_NODE, "Node edited")
       // Track selected node
       changes.forEach(change => {
         if (change.type === 'select' && change.selected) {
@@ -161,7 +177,7 @@ export default function MindMapVisualizer({
         }
       })
     },
-    [onNodesChange]
+    [onNodesChange, addXP]
   )
 
   const addNode = () => {
@@ -172,6 +188,7 @@ export default function MindMapVisualizer({
       data: { label: 'New Node' }
     } as MindMapNode
     setNodes((prev: Node[]) => [...prev, newNode])
+    addXP(XP_REWARDS.EDIT_NODE, "Node added")
   }
 
   const deleteNode = () => {
@@ -181,6 +198,7 @@ export default function MindMapVisualizer({
         edge.source !== selectedNode && edge.target !== selectedNode
       ))
       setSelectedNode(null)
+      addXP(XP_REWARDS.EDIT_NODE, "Node deleted")
     }
   }
 
@@ -231,8 +249,48 @@ export default function MindMapVisualizer({
     })
   }
 
+  const exportPDF = async () => {
+    if (!mapRef.current) return
+    setExportingPDF(true)
+    try {
+      await exportToPDF(mapRef.current, initialData?.metadata?.title ? `${initialData.metadata.title}.pdf` : undefined)
+    } catch (e) {
+      // Optionally show error
+    } finally {
+      setExportingPDF(false)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!user || !initialData?.metadata?.id) return
+    setShareStatus('sharing')
+    setShareError(null)
+    try {
+      const data = await makeMindMapPublic(initialData.metadata.id, user.id)
+      if (data && data.share_token) {
+        const link = `${window.location.origin}/map/public/${data.share_token}`
+        setPublicLink(link)
+        setShareStatus('success')
+        setShowShare(true)
+      } else {
+        setShareError('Failed to generate public link.')
+        setShareStatus('error')
+      }
+    } catch (e: any) {
+      setShareError(e.message || 'Failed to share mind map.')
+      setShareStatus('error')
+    }
+  }
+  const handleCopy = async () => {
+    if (publicLink) {
+      await navigator.clipboard.writeText(publicLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+  }
+
   return (
-    <div className="h-screen w-full bg-black">
+    <div ref={mapRef} className="h-screen w-full bg-black">
       {/* Toolbar */}
       <div className="absolute top-4 left-4 z-10 flex gap-2">
         <Card className="bg-gray-900/80 border-gray-700">
@@ -282,16 +340,61 @@ export default function MindMapVisualizer({
                 <Download className="w-4 h-4" />
               </Button>
               <Button
+                onClick={exportPDF}
+                size="sm"
+                variant="outline"
+                className="border-pink-500/20 text-pink-400 hover:bg-pink-500/10"
+                disabled={exportingPDF}
+              >
+                <Download className="w-4 h-4" />
+                {exportingPDF ? 'Exporting PDF...' : 'PDF'}
+              </Button>
+              <Button
                 onClick={() => setShowControls(!showControls)}
                 size="sm"
                 variant="outline"
               >
                 <Settings className="w-4 h-4" />
               </Button>
+              {user && initialData?.metadata?.id && (
+                <Button
+                  onClick={handleShare}
+                  size="sm"
+                  variant="outline"
+                  className="border-purple-500/20 text-purple-400 hover:bg-purple-500/10"
+                  disabled={shareStatus === 'sharing'}
+                >
+                  <Share2 className="w-4 h-4" />
+                  {shareStatus === 'sharing' ? 'Sharing...' : 'Share'}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
+      {/* Share Modal/Popover */}
+      {showShare && publicLink && (
+        <div className="fixed top-0 left-0 w-full h-full flex items-center justify-center z-50 bg-black/60">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-md w-full text-center">
+            <h2 className="text-lg font-bold mb-2">Public Link</h2>
+            <p className="text-gray-400 mb-4">Anyone with this link can view your mind map:</p>
+            <div className="flex items-center gap-2 justify-center mb-4">
+              <input
+                type="text"
+                value={publicLink}
+                readOnly
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                onFocus={e => e.target.select()}
+              />
+              <Button onClick={handleCopy} size="icon" variant="outline" className="border-blue-500/20">
+                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </div>
+            <Button onClick={() => setShowShare(false)} className="w-full bg-blue-600 hover:bg-blue-700 mt-2">Close</Button>
+            {shareError && <div className="text-red-400 text-xs mt-2">{shareError}</div>}
+          </div>
+        </div>
+      )}
 
       {/* React Flow */}
       <ReactFlow

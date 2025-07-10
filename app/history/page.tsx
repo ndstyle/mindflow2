@@ -35,7 +35,7 @@ interface MindMap {
 export default function HistoryPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [mindMaps, setMindMaps] = useState<MindMap[]>([])
+  const [mind_maps, setMindMaps] = useState<MindMap[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -114,7 +114,7 @@ export default function HistoryPage() {
     return edges?.length || 0
   }
 
-  const filteredMindMaps = mindMaps
+  const filteredMindMaps = mind_maps
     .filter(map => 
       map.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       map.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -286,10 +286,10 @@ export default function HistoryPage() {
           )}
 
           {/* Stats */}
-          {mindMaps.length > 0 && (
+          {mind_maps.length > 0 && (
             <div className="mt-8 text-center">
               <p className="text-white/40 text-sm">
-                Showing {filteredMindMaps.length} of {mindMaps.length} mind maps
+                Showing {filteredMindMaps.length} of {mind_maps.length} mind maps
               </p>
             </div>
           )}

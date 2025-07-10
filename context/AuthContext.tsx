@@ -4,7 +4,7 @@ import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
-import { supabase, createUserProfile, getUserProfile } from "@/lib/supabase"
+import { supabase, createUserProfile, getUserProfile, updateUserXP } from "@/lib/supabase"
 
 interface UserProfile {
   id: string
@@ -12,7 +12,7 @@ interface UserProfile {
   total_xp: number
   current_streak: number
   last_login: string
-  total_mindmaps: number
+  total_mind_maps: number
   total_nodes: number
   xp: number
   streak: number
@@ -27,6 +27,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  addXP: (xp: number, reason: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -51,8 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: "demo@example.com",
           total_xp: 150,
           current_streak: 3,
-          last_login: new Date().toISOString(),
-          total_mindmaps: 5,
+          last_login: "2024-01-01T00:00:00.000Z",
+          total_mind_maps: 5,
           total_nodes: 25,
           xp: 150,
           streak: 3,
@@ -77,8 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: "demo@example.com",
           total_xp: 150,
           current_streak: 3,
-          last_login: new Date().toISOString(),
-          total_mindmaps: 5,
+          last_login: "2024-01-01T00:00:00.000Z",
+          total_mind_maps: 5,
           total_nodes: 25,
           xp: 150,
           streak: 3,
@@ -141,6 +142,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const addXP = async (xp: number, reason: string) => {
+    if (user) {
+      await updateUserXP(user.id, xp, reason)
+      await loadUserProfile(user.id)
+    }
+  }
+
   const value = {
     user,
     userProfile,
@@ -150,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn,
     signOut,
     refreshProfile,
+    addXP,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

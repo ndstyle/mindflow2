@@ -23,6 +23,7 @@ export default function VoiceInput({ onTranscript, onXPEarned, className }: Voic
   const [isListening, setIsListening] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
   const [transcript, setTranscript] = useState("")
+  const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
@@ -58,7 +59,7 @@ export default function VoiceInput({ onTranscript, onXPEarned, className }: Voic
       }
 
       recognitionRef.current.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error)
+        setError(`Speech recognition error: ${event.error}`)
         setIsListening(false)
       }
 
@@ -77,6 +78,7 @@ export default function VoiceInput({ onTranscript, onXPEarned, className }: Voic
   const startListening = () => {
     if (recognitionRef.current && !isListening) {
       setTranscript("")
+      setError(null)
       recognitionRef.current.start()
       setIsListening(true)
     }
@@ -124,6 +126,9 @@ export default function VoiceInput({ onTranscript, onXPEarned, className }: Voic
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-sm text-gray-800">{transcript}</p>
           </div>
+        )}
+        {error && (
+          <div className="text-red-500 text-sm mt-2">{error}</div>
         )}
       </div>
 

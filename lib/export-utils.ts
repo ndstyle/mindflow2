@@ -1,4 +1,5 @@
 import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 export interface MindMapData {
   nodes: any[]
@@ -50,6 +51,30 @@ export const exportToSVG = (data: MindMapData, filename?: string) => {
   a.download = filename || `mindmap-${Date.now()}.svg`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/**
+ * Export a mind map as a PDF using html2canvas and jsPDF.
+ * @param element The DOM element to capture (e.g., the mind map container)
+ * @param filename Optional filename for the PDF
+ * Usage: await exportToPDF(document.getElementById('mindmap-root'))
+ */
+export const exportToPDF = async (element: HTMLElement, filename?: string) => {
+  try {
+    const canvas = await html2canvas(element, {
+      backgroundColor: '#000000',
+      scale: 2,
+      useCORS: true,
+      allowTaint: true
+    })
+    const imgData = canvas.toDataURL('image/png')
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width, canvas.height] })
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
+    pdf.save(filename || `mindmap-${Date.now()}.pdf`)
+  } catch (error) {
+    console.error('Error exporting to PDF:', error)
+    throw new Error('Failed to export PDF')
+  }
 }
 
 const generateSVG = (data: MindMapData): string => {

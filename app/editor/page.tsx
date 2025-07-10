@@ -16,6 +16,10 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface Node {
   id: string
@@ -40,6 +44,11 @@ export default function EditorPage() {
   const [showGrid, setShowGrid] = useState(true)
   const [zoom, setZoom] = useState(1)
   const router = useRouter()
+  const { user } = useAuth()
+  const [title, setTitle] = useState('Untitled Mind Map')
+  const [description, setDescription] = useState('')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>("idle")
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Add new node
   const addNode = () => {
@@ -96,12 +105,36 @@ export default function EditorPage() {
 
   // Save mind map
   const saveMindMap = async () => {
+    if (!user) {
+      setErrorMsg('You must be logged in to save your mind map.')
+      setSaveStatus('error')
+      return
+    }
+    setSaveStatus('saving')
+    setErrorMsg(null)
     try {
-      // TODO: Implement save to database
-      console.log('Saving mind map:', { nodes, edges })
-      // Show success message
-    } catch (error) {
-      console.error('Error saving mind map:', error)
+      const { data, error } = await supabase
+        .from('mind_maps')
+        .insert({
+          user_id: user.id,
+          title: title || 'Untitled Mind Map',
+          description,
+          nodes,
+          edges,
+          metadata: { title, description },
+        })
+        .select()
+        .single()
+      if (error) {
+        setErrorMsg(error.message)
+        setSaveStatus('error')
+      } else {
+        setSaveStatus('success')
+        setTimeout(() => setSaveStatus('idle'), 2000)
+      }
+    } catch (error: any) {
+      setErrorMsg(error.message || 'Failed to save mind map.')
+      setSaveStatus('error')
     }
   }
 
@@ -125,6 +158,12 @@ export default function EditorPage() {
           <div className="mb-6">
             <h1 className="text-xl font-bold mb-2">Mind Map Editor</h1>
             <p className="text-gray-400 text-sm">Create and organize your ideas</p>
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input id="title" value={title} onChange={e => setTitle(e.target.value)} className="bg-gray-800 border-gray-700 text-white" />
+              <Label htmlFor="desc">Description</Label>
+              <Input id="desc" value={description} onChange={e => setDescription(e.target.value)} className="bg-gray-800 border-gray-700 text-white" />
+            </div>
           </div>
 
           {/* Node Management */}
@@ -204,14 +243,16 @@ export default function EditorPage() {
           {/* Export & Save */}
           <div className="space-y-4 mb-6">
             <h3 className="text-sm font-medium text-gray-300">Export & Save</h3>
-            
             <Button 
               onClick={saveMindMap}
               className="w-full bg-green-600 hover:bg-green-700"
+              disabled={saveStatus === 'saving'}
             >
               <Save className="w-4 h-4 mr-2" />
-              Save
+              {saveStatus === 'saving' ? 'Saving...' : 'Save'}
             </Button>
+            {saveStatus === 'success' && <div className="text-green-400 text-xs mt-1">Mind map saved!</div>}
+            {saveStatus === 'error' && <div className="text-red-400 text-xs mt-1">{errorMsg}</div>}
             
             <Button 
               onClick={exportData}

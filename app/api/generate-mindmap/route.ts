@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,13 +67,13 @@ rules:
       prompt: `analyze these notes and create a mind map structure:\n\n${notes}`,
     })
 
+    let mindMapData
     try {
-      const mindMapData = JSON.parse(text)
-      return NextResponse.json(mindMapData)
+      mindMapData = JSON.parse(text)
     } catch (parseError) {
       console.error("failed to parse ai response:", parseError)
       // Return fallback structure if parsing fails
-      return NextResponse.json({
+      mindMapData = {
         nodes: [
           { id: "1", label: "main concept", x: 0, y: 0, level: 0 },
           { id: "2", label: "key point 1", x: 200, y: -100, level: 1 },
@@ -87,8 +88,32 @@ rules:
           description: "organized from your notes",
           created_at: new Date().toISOString(),
         },
-      })
+      }
     }
+
+    // Try to save to DB if possible
+    if (isSupabaseConfigured() && supabase) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (!authError && user) {
+        const { title, description } = mindMapData.metadata || {}
+        const { data, error } = await supabase
+          .from("mind_maps")
+          .insert({
+            user_id: user.id,
+            title: title || "Untitled Mind Map",
+            description: description || "",
+            original_text: notes,
+            mind_map_data: mindMapData,
+          })
+          .select()
+          .single()
+        if (!error && data) {
+          return NextResponse.json({ id: data.id, ...mindMapData })
+        }
+      }
+    }
+    // If not authenticated or DB error, just return the generated mind map
+    return NextResponse.json(mindMapData)
   } catch (error) {
     console.error("error generating mind map:", error)
     return NextResponse.json({ error: "failed to generate mind map" }, { status: 500 })

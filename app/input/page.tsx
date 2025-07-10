@@ -12,6 +12,7 @@ import XPNotification from "@/components/XPNotification"
 import { useAuth } from "@/context/AuthContext"
 import { updateUserXP, XP_REWARDS } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function InputPage() {
   const [input, setInput] = useState("")
@@ -22,6 +23,7 @@ export default function InputPage() {
     reason: string
     currentXP: number
   } | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const { user, userProfile, refreshProfile } = useAuth()
   const router = useRouter()
@@ -47,6 +49,7 @@ export default function InputPage() {
     if (!input.trim()) return
 
     setIsGenerating(true)
+    setErrorMsg(null)
 
     try {
       const response = await fetch("/api/generate-mindmap", {
@@ -54,11 +57,13 @@ export default function InputPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ input }),
+        body: JSON.stringify({ notes: input }),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to generate mind map")
+        const errData = await response.json().catch(() => ({}))
+        setErrorMsg(errData.error || "Failed to generate mind map")
+        return
       }
 
       const data = await response.json()
@@ -77,8 +82,8 @@ export default function InputPage() {
 
       // Redirect to the generated mind map
       router.push(`/map/${data.id}`)
-    } catch (error) {
-      console.error("Error generating mind map:", error)
+    } catch (error: any) {
+      setErrorMsg(error.message || "Error generating mind map")
     } finally {
       setIsGenerating(false)
     }
@@ -95,7 +100,12 @@ export default function InputPage() {
             <XPDisplay currentXP={userProfile.xp} />
           </div>
         )}
-
+        {/* Error Alert */}
+        {errorMsg && (
+          <Alert variant="destructive" className="mb-6 bg-red-500/10 border-red-500/20">
+            <AlertDescription>{errorMsg}</AlertDescription>
+          </Alert>
+        )}
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
