@@ -148,7 +148,7 @@ export default function InputPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-blue-400" />
-              {inputMethod === "text" ? "describe your topic" : "speak your ideas"}
+              <span className="text-white">{inputMethod === "text" ? "describe your topic" : "speak your ideas"}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -64,7 +64,24 @@ export function calculateStreak(lastActivity: string): number {
 }
 
 export function isSupabaseConfigured() {
-  return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.length > 0 && supabaseAnonKey.length > 0)
+  const hasUrl = Boolean(supabaseUrl && supabaseUrl.length > 0)
+  const hasKey = Boolean(supabaseAnonKey && supabaseAnonKey.length > 0)
+  
+  console.log('Supabase config check:', {
+    hasUrl,
+    hasKey,
+    urlLength: supabaseUrl?.length,
+    keyLength: supabaseAnonKey?.length
+  })
+  
+  if (!hasUrl) {
+    console.warn('Supabase URL not configured')
+  }
+  if (!hasKey) {
+    console.warn('Supabase anon key not configured')
+  }
+  
+  return hasUrl && hasKey
 }
 
 // Database functions
@@ -92,13 +109,22 @@ export async function createUserProfile(userId: string, email: string) {
 }
 
 export async function getUserProfile(userId: string) {
+  console.log('Fetching user profile for userId:', userId)
+  
   const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId).single()
 
   if (error) {
     console.error("Error fetching user profile:", error)
+    console.error("Error details:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code
+    })
     return null
   }
 
+  console.log('User profile fetched successfully:', data)
   return data
 }
 

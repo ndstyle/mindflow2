@@ -11,7 +11,6 @@ import { getUserLevel, getXPToNextLevel } from "@/lib/supabase"
 
 interface DashboardContentProps {
   user?: any
-  isDemoMode?: boolean
   userProfile?: any
 }
 
@@ -19,14 +18,25 @@ export default function DashboardContent(props: DashboardContentProps) {
   const context = useAuth()
   const user = props.user ?? context.user
   const userProfile = props.userProfile ?? context.userProfile
-  const isDemoMode = props.isDemoMode ?? context.isDemoMode
+  const loading = context.loading
 
-  if (!userProfile) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-          <p>loading your profile...</p>
+          <p>Loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!userProfile || typeof userProfile.xp !== 'number' || typeof userProfile.streak !== 'number' || typeof userProfile.total_mindmaps !== 'number' || typeof userProfile.total_nodes !== 'number') {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 text-lg mb-4">Your profile data is incomplete or malformed. Please sign out and sign in again, or contact support.</p>
+          <Button onClick={() => window.location.href = '/login'} className="bg-gray-700 hover:bg-gray-800">Sign Out</Button>
         </div>
       </div>
     )
@@ -46,7 +56,7 @@ export default function DashboardContent(props: DashboardContentProps) {
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">welcome back, {user?.email?.split("@")[0] || "mind mapper"}!</h1>
+          <h1 className="text-4xl font-bold mb-2 text-white">welcome back, {user?.email?.split("@")?.[0] || "mind mapper"}!</h1>
           <p className="text-gray-400">ready to transform more ideas into beautiful mind maps?</p>
         </div>
 
@@ -103,7 +113,7 @@ export default function DashboardContent(props: DashboardContentProps) {
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-6 text-center">
               <Brain className="w-8 h-8 text-blue-400 mx-auto mb-3" />
-              <p className="text-2xl font-bold">{userProfile.total_mind_maps}</p>
+              <p className="text-2xl font-bold">{userProfile.total_mindmaps}</p>
               <p className="text-sm text-gray-400">mind maps created</p>
             </CardContent>
           </Card>
@@ -186,26 +196,16 @@ export default function DashboardContent(props: DashboardContentProps) {
               <div className="text-center p-4 bg-gray-800/50 rounded-lg">
                 <Target className="w-6 h-6 text-green-400 mx-auto mb-2" />
                 <p className="font-medium">edit nodes</p>
-                <p className="text-sm text-gray-400">+2 XP each</p>
+                <p className="text-sm text-gray-400">+5 XP per node</p>
               </div>
               <div className="text-center p-4 bg-gray-800/50 rounded-lg">
                 <Flame className="w-6 h-6 text-orange-400 mx-auto mb-2" />
                 <p className="font-medium">daily streak</p>
-                <p className="text-sm text-gray-400">+5 XP bonus</p>
+                <p className="text-sm text-gray-400">+15 XP per day</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {isDemoMode && (
-          <Card className="bg-blue-500/10 border-blue-500/20 mt-6">
-            <CardContent className="p-4">
-              <p className="text-blue-300 text-center">
-                🎮 you're in demo mode! your progress is saved locally. connect supabase to sync across devices.
-              </p>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   )

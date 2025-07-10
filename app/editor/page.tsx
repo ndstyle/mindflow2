@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -16,10 +16,11 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
-import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import CurrentUserInfo from "@/components/CurrentUserInfo";
+import SignOutButton from "@/components/SignOutButton";
 
 interface Node {
   id: string
@@ -44,7 +45,6 @@ export default function EditorPage() {
   const [showGrid, setShowGrid] = useState(true)
   const [zoom, setZoom] = useState(1)
   const router = useRouter()
-  const { user } = useAuth()
   const [title, setTitle] = useState('Untitled Mind Map')
   const [description, setDescription] = useState('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>("idle")
@@ -105,23 +105,17 @@ export default function EditorPage() {
 
   // Save mind map
   const saveMindMap = async () => {
-    if (!user) {
-      setErrorMsg('You must be logged in to save your mind map.')
-      setSaveStatus('error')
-      return
-    }
     setSaveStatus('saving')
     setErrorMsg(null)
     try {
       const { data, error } = await supabase
         .from('mind_maps')
         .insert({
-          user_id: user.id,
           title: title || 'Untitled Mind Map',
           description,
-          nodes,
-          edges,
-          metadata: { title, description },
+          original_text: '',
+          mind_map_data: { nodes, edges },
+          is_public: false,
         })
         .select()
         .single()
@@ -151,6 +145,10 @@ export default function EditorPage() {
 
   return (
     <ProtectedRoute>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <CurrentUserInfo />
+        <SignOutButton />
+      </div>
       <div className="min-h-screen bg-black text-white flex">
         {/* Sidebar */}
         <div className="w-64 bg-gray-900/50 border-r border-gray-800 p-4 flex flex-col">
@@ -169,167 +167,85 @@ export default function EditorPage() {
           {/* Node Management */}
           <div className="space-y-4 mb-6">
             <h3 className="text-sm font-medium text-gray-300">Node Management</h3>
-            
-            <Button 
-              onClick={addNode}
-              className="w-full bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Node
-            </Button>
-            
-            <Button 
-              onClick={removeNode}
-              disabled={!selectedNode}
-              variant="destructive"
-              className="w-full"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Remove Node
-            </Button>
-          </div>
-
-          {/* View Controls */}
-          <div className="space-y-4 mb-6">
-            <h3 className="text-sm font-medium text-gray-300">View</h3>
-            
-            <Button 
-              onClick={() => setShowGrid(!showGrid)}
-              variant="outline"
-              className="w-full"
-            >
-              {showGrid ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
-              {showGrid ? 'Hide Grid' : 'Show Grid'}
-            </Button>
-            
-            <div className="space-y-2">
-              <label className="text-sm text-gray-300">Zoom</label>
-              <input
-                type="range"
-                min="0.5"
-                max="2"
-                step="0.1"
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="w-full"
-              />
-              <span className="text-xs text-gray-400">{Math.round(zoom * 100)}%</span>
+            <div className="flex gap-2">
+              <Button onClick={addNode} size="sm" className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-1" />
+                Add Node
+              </Button>
+              <Button onClick={removeNode} size="sm" variant="destructive" disabled={!selectedNode}>
+                <Trash2 className="w-4 h-4 mr-1" />
+                Remove
+              </Button>
             </div>
           </div>
 
           {/* Actions */}
           <div className="space-y-4 mb-6">
             <h3 className="text-sm font-medium text-gray-300">Actions</h3>
-            
-            <Button 
-              onClick={undo}
-              variant="outline"
-              className="w-full"
-            >
-              <Undo className="w-4 h-4 mr-2" />
-              Undo
-            </Button>
-            
-            <Button 
-              onClick={redo}
-              variant="outline"
-              className="w-full"
-            >
-              <Redo className="w-4 h-4 mr-2" />
-              Redo
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={saveMindMap} size="sm" className="bg-green-600 hover:bg-green-700" disabled={saveStatus === 'saving'}>
+                <Save className="w-4 h-4 mr-1" />
+                {saveStatus === 'saving' ? 'Saving...' : 'Save'}
+              </Button>
+              <Button onClick={exportData} size="sm" className="bg-purple-600 hover:bg-purple-700">
+                <Download className="w-4 h-4 mr-1" />
+                Export
+              </Button>
+            </div>
           </div>
 
-          {/* Export & Save */}
+          {/* View Controls */}
           <div className="space-y-4 mb-6">
-            <h3 className="text-sm font-medium text-gray-300">Export & Save</h3>
-            <Button 
-              onClick={saveMindMap}
-              className="w-full bg-green-600 hover:bg-green-700"
-              disabled={saveStatus === 'saving'}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saveStatus === 'saving' ? 'Saving...' : 'Save'}
-            </Button>
-            {saveStatus === 'success' && <div className="text-green-400 text-xs mt-1">Mind map saved!</div>}
-            {saveStatus === 'error' && <div className="text-red-400 text-xs mt-1">{errorMsg}</div>}
-            
-            <Button 
-              onClick={exportData}
-              variant="outline"
-              className="w-full"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export JSON
-            </Button>
-            
-            <Button 
-              variant="outline"
-              className="w-full"
-            >
-              <Share2 className="w-4 h-4 mr-2" />
-              Share
-            </Button>
+            <h3 className="text-sm font-medium text-gray-300">View</h3>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setShowGrid(!showGrid)} 
+                size="sm" 
+                variant={showGrid ? "default" : "outline"}
+              >
+                {showGrid ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
+                Grid
+              </Button>
+            </div>
           </div>
 
-          {/* Stats */}
-          <div className="mt-auto space-y-2">
-            <div className="text-sm text-gray-400">
-              Nodes: {nodes.length}
+          {/* Status */}
+          {errorMsg && (
+            <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">
+              {errorMsg}
             </div>
-            <div className="text-sm text-gray-400">
-              Connections: {edges.length}
+          )}
+          
+          {saveStatus === 'success' && (
+            <div className="mt-4 p-3 bg-green-900/50 border border-green-700 rounded text-green-300 text-sm">
+              Mind map saved successfully!
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Main Canvas Area */}
+        {/* Canvas */}
         <div className="flex-1 relative overflow-hidden">
-          {/* Background Grid */}
-          {showGrid && (
-            <div 
-              className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage: `
-                  linear-gradient(to right, #1a1a1a 1px, transparent 1px),
-                  linear-gradient(to bottom, #1a1a1a 1px, transparent 1px)
-                `,
-                backgroundSize: '40px 40px'
-              }}
-            />
-          )}
-
-          {/* Canvas Container */}
-          <div 
-            className="absolute inset-0"
-            style={{
-              transform: `scale(${zoom})`,
-              transformOrigin: 'center'
-            }}
-          >
-            {/* Placeholder for Graph Visualization */}
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-32 h-32 bg-gray-800/50 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center mb-4">
-                  <div className="text-gray-400 text-sm text-center">
-                    Graph<br />Canvas
-                  </div>
-                </div>
-                <p className="text-gray-400 text-sm">
-                  Interactive mind map visualization will be rendered here
-                </p>
-                <p className="text-gray-500 text-xs mt-2">
-                  {nodes.length} nodes, {edges.length} connections
-                </p>
+          <div className="absolute inset-0 bg-gray-900">
+            {/* Grid */}
+            {showGrid && (
+              <div className="absolute inset-0 opacity-20">
+                <svg className="w-full h-full">
+                  <defs>
+                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1"/>
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid)" />
+                </svg>
               </div>
-            </div>
-
-            {/* Simple Node Display (for demo) */}
-            {nodes.map((node) => (
+            )}
+            
+            {/* Nodes */}
+            {nodes.map(node => (
               <div
                 key={node.id}
-                className={`absolute w-24 h-24 bg-blue-600/20 border border-blue-500/30 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
-                  selectedNode === node.id ? 'ring-2 ring-blue-400' : ''
+                className={`absolute cursor-pointer p-2 bg-blue-600 rounded border-2 ${
+                  selectedNode === node.id ? 'border-yellow-400' : 'border-transparent'
                 }`}
                 style={{
                   left: node.x,
@@ -338,27 +254,30 @@ export default function EditorPage() {
                 }}
                 onClick={() => setSelectedNode(node.id)}
               >
-                <span className="text-xs text-center px-2">{node.label}</span>
+                {node.label}
               </div>
             ))}
-          </div>
-
-          {/* Zoom Controls */}
-          <div className="absolute bottom-4 right-4 flex space-x-2">
-            <Button
-              onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-              size="sm"
-              variant="outline"
-            >
-              -
-            </Button>
-            <Button
-              onClick={() => setZoom(Math.min(2, zoom + 0.1))}
-              size="sm"
-              variant="outline"
-            >
-              +
-            </Button>
+            
+            {/* Edges */}
+            <svg className="absolute inset-0 pointer-events-none">
+              {edges.map(edge => {
+                const source = nodes.find(n => n.id === edge.sourceId)
+                const target = nodes.find(n => n.id === edge.targetId)
+                if (!source || !target) return null
+                
+                return (
+                  <line
+                    key={edge.id}
+                    x1={source.x}
+                    y1={source.y}
+                    x2={target.x}
+                    y2={target.y}
+                    stroke="white"
+                    strokeWidth="2"
+                  />
+                )
+              })}
+            </svg>
           </div>
         </div>
       </div>

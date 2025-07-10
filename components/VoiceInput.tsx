@@ -59,7 +59,11 @@ export default function VoiceInput({ onTranscript, onXPEarned, className }: Voic
       }
 
       recognitionRef.current.onerror = (event: any) => {
-        setError(`Speech recognition error: ${event.error}`)
+        if (event.error === 'network') {
+          setError('Speech recognition failed due to a network issue. Please check your internet connection or try a different browser.')
+        } else {
+          setError(`Speech recognition error: ${event.error}`)
+        }
         setIsListening(false)
       }
 

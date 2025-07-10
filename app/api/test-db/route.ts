@@ -17,21 +17,35 @@ export async function GET() {
   }
 
   try {
-    // Test database connection by querying the mind_maps table
-    const { data, error } = await supabase.from("mind_maps").select("count(*)").limit(1)
+    // Test database connection by querying the user_profiles table
+    const { data: profilesData, error: profilesError } = await supabase.from("user_profiles").select("*").limit(1)
+    
+    // Test mind_maps table as well
+    const { data: mindMapsData, error: mindMapsError } = await supabase.from("mind_maps").select("*").limit(1)
 
-    if (error) {
+    if (profilesError) {
       return NextResponse.json({
         success: false,
-        message: "Database query failed",
-        error: error.message,
+        message: "User profiles table query failed",
+        error: profilesError.message,
+      })
+    }
+
+    if (mindMapsError) {
+      return NextResponse.json({
+        success: false,
+        message: "Mind maps table query failed", 
+        error: mindMapsError.message,
       })
     }
 
     return NextResponse.json({
       success: true,
       message: "Database connection successful",
-      data,
+      data: {
+        user_profiles_count: profilesData?.length || 0,
+        mind_maps_count: mindMapsData?.length || 0,
+      },
     })
   } catch (error) {
     return NextResponse.json({

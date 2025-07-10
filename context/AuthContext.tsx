@@ -12,7 +12,7 @@ interface UserProfile {
   total_xp: number
   current_streak: number
   last_login: string
-  total_mind_maps: number
+  total_mindmaps: number
   total_nodes: number
   xp: number
   streak: number
@@ -22,7 +22,6 @@ interface AuthContextType {
   user: User | null
   userProfile: UserProfile | null
   loading: boolean
-  isDemoMode: boolean
   signUp: (email: string, password: string) => Promise<{ error: any }>
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
@@ -36,73 +35,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isDemoMode, setIsDemoMode] = useState(false)
 
   useEffect(() => {
+    console.log('AuthContext: Initializing auth state...')
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('AuthContext: Got initial session:', session?.user?.email || 'no session')
       setUser(session?.user ?? null)
       if (session?.user) {
-        loadUserProfile(session.user.id)
+        loadUserProfile(session.user.id, session.user.email)
       } else {
-        // Demo mode for when no user is signed in
-        setIsDemoMode(true)
-        setUserProfile({
-          id: "demo",
-          email: "demo@example.com",
-          total_xp: 150,
-          current_streak: 3,
-          last_login: "2024-01-01T00:00:00.000Z",
-          total_mind_maps: 5,
-          total_nodes: 25,
-          xp: 150,
-          streak: 3,
-        })
+        // No user signed in
+        console.log('AuthContext: No session, setting loading to false')
+        setLoading(false)
       }
+    }).catch((error) => {
+      console.error('AuthContext: Error getting initial session:', error)
       setLoading(false)
     })
+
+    // Force loading to false after a short delay
+    const forceLoadingTimeout = setTimeout(() => {
+      console.log('AuthContext: Forcing loading to false after delay')
+      setLoading(false)
+    }, 500)
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email)
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        setIsDemoMode(false)
-        await loadUserProfile(session.user.id)
+        await loadUserProfile(session.user.id, session.user.email)
       } else {
-        setIsDemoMode(true)
-        setUserProfile({
-          id: "demo",
-          email: "demo@example.com",
-          total_xp: 150,
-          current_streak: 3,
-          last_login: "2024-01-01T00:00:00.000Z",
-          total_mind_maps: 5,
-          total_nodes: 25,
-          xp: 150,
-          streak: 3,
-        })
+        // User signed out
+        setUserProfile(null)
+        setLoading(false)
       }
-      setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(forceLoadingTimeout) // Cleanup timeout on unmount
+      subscription.unsubscribe()
+    }
   }, [])
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, userEmail?: string) => {
+    console.log('Loading user profile for:', userId, 'email:', userEmail)
+    
+    // Set a timeout for the profile loading
+    const profileTimeoutId = setTimeout(() => {
+      console.log('Profile loading timeout, setting loading to false')
+      setLoading(false)
+    }, 3000) // 3 second timeout for profile loading
+    
     try {
       const profile = await getUserProfile(userId)
+      clearTimeout(profileTimeoutId) // Clear timeout since we got a response
+      
       if (profile) {
+        console.log('Found existing profile:', profile)
         setUserProfile({
           ...profile,
           xp: profile.total_xp,
           streak: profile.current_streak,
+          total_mindmaps: profile.total_mindmaps ?? 0,
+          total_nodes: profile.total_nodes ?? 0,
         })
+      } else {
+        // Profile doesn't exist yet, create it
+        console.log('User profile not found, creating new profile for user:', userId)
+        const email = userEmail || user?.email || ''
+        const newProfile = await createUserProfile(userId, email)
+        if (newProfile) {
+          console.log('Created new profile:', newProfile)
+          setUserProfile({
+            ...newProfile,
+            xp: newProfile.total_xp,
+            streak: newProfile.current_streak,
+            total_mindmaps: newProfile.total_mindmaps ?? 0,
+            total_nodes: newProfile.total_nodes ?? 0,
+          })
+        } else {
+          console.error('Failed to create user profile for user:', userId)
+          setUserProfile(null)
+        }
       }
     } catch (error) {
-      console.error("Error loading user profile:", error)
+      console.error('Error loading user profile:', error)
+      setUserProfile(null)
+    } finally {
+      console.log('Setting loading to false')
+      clearTimeout(profileTimeoutId) // Clear timeout in finally block too
+      setLoading(false)
     }
   }
 
@@ -115,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!error && data.user) {
       // Create user profile with welcome XP
       await createUserProfile(data.user.id, email)
-      await loadUserProfile(data.user.id)
+      await loadUserProfile(data.user.id, email)
     }
 
     return { error }
@@ -131,14 +159,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-    setUserProfile(null)
+    try {
+      console.log('Signing out user...')
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Error signing out:', error)
+      } else {
+        console.log('User signed out successfully')
+      }
+      setUser(null)
+      setUserProfile(null)
+    } catch (error) {
+      console.error('Error in signOut function:', error)
+      // Still clear the local state even if there's an error
+      setUser(null)
+      setUserProfile(null)
+    }
   }
 
   const refreshProfile = async () => {
     if (user) {
-      await loadUserProfile(user.id)
+      await loadUserProfile(user.id, user.email)
     }
   }
 
@@ -153,7 +194,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     userProfile,
     loading,
-    isDemoMode,
     signUp,
     signIn,
     signOut,

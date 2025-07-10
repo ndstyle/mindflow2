@@ -1,250 +1,239 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
+import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import MindMapVisualizer from '@/components/MindMapVisualizer'
+import CurrentUserInfo from "@/components/CurrentUserInfo";
+import SignOutButton from "@/components/SignOutButton";
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
-  Loader2, 
-  AlertCircle, 
-  ArrowLeft,
-  Save,
-  Share2
+  ArrowLeft, 
+  Share2, 
+  Download, 
+  Edit, 
+  Eye,
+  Brain
 } from 'lucide-react'
+import Link from 'next/link'
 
 interface MindMapData {
-  nodes: any[]
-  edges: any[]
-  metadata?: {
-    title?: string
-    description?: string
-  }
+  id: string
+  title: string
+  description: string
+  original_text: string
+  mind_map_data: any
+  is_public: boolean
+  share_token?: string
+  created_at: string
+  updated_at: string
 }
 
 export default function MindMapPage() {
-  const { id } = useParams()
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const { user } = useAuth()
-  const [mindMapData, setMindMapData] = useState<MindMapData | null>(null)
+  const params = useParams()
+  const mindMapId = params.id as string
+  const [mindMap, setMindMap] = useState<MindMapData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
 
   useEffect(() => {
-    const loadMindMap = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+    fetchMindMap()
+  }, [mindMapId])
 
-        if (id === 'temp') {
-          // Load from URL parameters (for temporary data)
-          const dataParam = searchParams.get('data')
-          if (dataParam) {
-            const data = JSON.parse(decodeURIComponent(dataParam))
-            setMindMapData(data)
-          } else {
-            setError('No mind map data found')
-          }
-        } else {
-          // Load from database
-          const { data, error } = await supabase
-            .from('mindmaps')
-            .select('*')
-            .eq('id', id)
-            .eq('user_id', user?.id)
-            .single()
-
-          if (error) {
-            throw error
-          }
-
-          if (data) {
-            setMindMapData({
-              nodes: data.nodes || [],
-              edges: data.edges || [],
-              metadata: {
-                title: data.title,
-                description: data.description
-              }
-            })
-          } else {
-            setError('Mind map not found')
-          }
-        }
-      } catch (err) {
-        console.error('Error loading mind map:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load mind map')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (user || id === 'temp') {
-      loadMindMap()
-    }
-  }, [id, user, searchParams])
-
-  const handleSave = async (data: MindMapData) => {
-    if (!user || id === 'temp') return
-
+  const fetchMindMap = async () => {
     try {
-      setSaving(true)
-      setSaveSuccess(false)
+      setLoading(true)
+      setError(null)
 
-      const { error } = await supabase
-        .from('mindmaps')
-        .update({
-          nodes: data.nodes,
-          edges: data.edges,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
-        .eq('user_id', user.id)
+      const { data, error } = await supabase
+        .from('mind_maps')
+        .select('*')
+        .eq('id', mindMapId)
+        .single()
 
       if (error) {
-        throw error
+        console.error('Error fetching mind map:', error)
+        setError('Failed to load mind map. It may not exist or you may not have permission to view it.')
+      } else {
+        setMindMap(data)
       }
-
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
     } catch (err) {
-      console.error('Error saving mind map:', err)
-      setError('Failed to save mind map')
+      console.error('Error:', err)
+      setError('An unexpected error occurred while loading the mind map.')
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
   }
 
-  const handleExport = (data: MindMapData) => {
-    // Export functionality is handled in the MindMapVisualizer component
-    console.log('Exporting mind map:', data)
+  const makePublic = async () => {
+    if (!mindMap) return
+
+    try {
+      const { data, error } = await supabase
+        .from('mind_maps')
+        .update({ is_public: true })
+        .eq('id', mindMapId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error making mind map public:', error)
+      } else {
+        setMindMap(data)
+      }
+    } catch (err) {
+      console.error('Error:', err)
+    }
   }
 
-  const handleBack = () => {
-    router.push('/dashboard')
+  const exportData = () => {
+    if (!mindMap) return
+
+    const data = {
+      title: mindMap.title,
+      description: mindMap.description,
+      mindMapData: mindMap.mind_map_data,
+      exportedAt: new Date().toISOString()
+    }
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json'
+    })
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${mindMap.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="flex items-center space-x-3">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
-          <span className="text-lg">Loading mind map...</span>
+      <ProtectedRoute>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <CurrentUserInfo />
+          <SignOutButton />
         </div>
-      </div>
+        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+            <p>Loading mind map...</p>
+          </div>
+        </div>
+      </ProtectedRoute>
     )
   }
 
-  if (error) {
+  if (error || !mindMap) {
     return (
-      <div className="min-h-screen bg-black text-white">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a1a1a_1px,transparent_1px),linear-gradient(to_bottom,#1a1a1a_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
-        
-        <div className="relative z-10 max-w-4xl mx-auto px-4 py-12">
-          <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold mb-4">Error Loading Mind Map</h1>
-            <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 mb-6">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-            <Button onClick={handleBack} className="bg-blue-600 hover:bg-blue-700">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
+      <ProtectedRoute>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <CurrentUserInfo />
+          <SignOutButton />
+        </div>
+        <div className="min-h-screen bg-black text-white flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <Brain className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Mind Map Not Found</h2>
+            <p className="text-gray-400 mb-6">{error || 'The mind map you are looking for does not exist.'}</p>
+            <Link href="/history">
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to History
+              </Button>
+            </Link>
           </div>
         </div>
-      </div>
-    )
-  }
-
-  if (!mindMapData) {
-    return (
-      <div className="min-h-screen bg-black text-white">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1a1a1a_1px,transparent_1px),linear-gradient(to_bottom,#1a1a1a_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
-        
-        <div className="relative z-10 max-w-4xl mx-auto px-4 py-12">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Mind Map Not Found</h1>
-            <p className="text-gray-400 mb-6">The mind map you're looking for doesn't exist or you don't have permission to view it.</p>
-            <Button onClick={handleBack} className="bg-blue-600 hover:bg-blue-700">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
+      </ProtectedRoute>
     )
   }
 
   return (
     <ProtectedRoute>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <CurrentUserInfo />
+        <SignOutButton />
+      </div>
       <div className="h-screen w-full bg-black">
         {/* Header */}
-        <div className="absolute top-4 left-4 z-20">
-          <Card className="bg-gray-900/80 border-gray-700">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={handleBack}
-                  variant="outline"
-                  size="sm"
-                  className="border-gray-600 text-gray-300 hover:bg-gray-800"
-                >
+        <div className="absolute top-0 left-0 right-0 z-10 bg-black/80 backdrop-blur-sm border-b border-gray-800">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-4">
+              <Link href="/history">
+                <Button variant="outline" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                
-                {mindMapData.metadata?.title && (
-                  <div className="text-white font-medium">
-                    {mindMapData.metadata.title}
-                  </div>
-                )}
-                
-                {user && id !== 'temp' && (
-                  <Button
-                    onClick={() => handleSave(mindMapData)}
-                    disabled={saving}
-                    size="sm"
-                    variant="outline"
-                    className="border-green-500/20 text-green-400 hover:bg-green-500/10"
-                  >
-                    {saving ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4" />
-                    )}
-                  </Button>
+              </Link>
+              <div>
+                <h1 className="text-xl font-semibold">{mindMap.title}</h1>
+                {mindMap.description && (
+                  <p className="text-gray-400 text-sm">{mindMap.description}</p>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button onClick={makePublic} variant="outline" size="sm">
+                <Share2 className="w-4 h-4 mr-2" />
+                Make Public
+              </Button>
+              <Button onClick={exportData} variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+              <Link href={`/editor`}>
+                <Button size="sm">
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
 
-        {/* Save Success Message */}
-        {saveSuccess && (
-          <div className="absolute top-4 right-4 z-20">
-            <Alert className="bg-green-500/10 border-green-500/20">
-              <AlertDescription className="text-green-400">
-                Mind map saved successfully!
-              </AlertDescription>
-            </Alert>
+        {/* Content */}
+        <div className="pt-20 h-full">
+          <div className="h-full flex items-center justify-center">
+            <Card className="bg-gray-900/50 border-gray-800 max-w-2xl mx-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-blue-400" />
+                  Mind Map Visualization
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12">
+                  <div className="w-32 h-32 bg-gray-800/50 border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center mx-auto mb-4">
+                    <Brain className="w-12 h-12 text-gray-400" />
+                  </div>
+                  <p className="text-gray-400 mb-4">
+                    Interactive mind map visualization will be rendered here
+                  </p>
+                  <div className="text-sm text-gray-500">
+                    <p>Created: {formatDate(mindMap.created_at)}</p>
+                    {mindMap.updated_at !== mindMap.created_at && (
+                      <p>Updated: {formatDate(mindMap.updated_at)}</p>
+                    )}
+                    <p>Status: {mindMap.is_public ? 'Public' : 'Private'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
-
-        {/* Mind Map Visualizer */}
-        <MindMapVisualizer
-          initialData={mindMapData}
-          onSave={handleSave}
-          onExport={handleExport}
-          readOnly={false}
-        />
+        </div>
       </div>
     </ProtectedRoute>
   )
