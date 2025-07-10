@@ -2,60 +2,65 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
-import { supabase, createUserProfile, getUserProfile, updateUserXP } from "@/lib/supabase"
+import { supabase, getUserLevel, calculateStreak } from "@/lib/supabase"
+import type { User, Session } from "@supabase/supabase-js"
 
 interface UserProfile {
   id: string
   user_id: string
-  email: string
   xp: number
   level: number
-  streak_count: number
+  streak: number
   last_activity: string
+  total_mindmaps: number
+  total_nodes: number
   created_at: string
+  updated_at: string
 }
 
 interface AuthContextType {
   user: User | null
+  session: Session | null
   userProfile: UserProfile | null
   loading: boolean
-  signUp: (email: string, password: string) => Promise<{ error?: string }>
   signIn: (email: string, password: string) => Promise<{ error?: string }>
+  signUp: (email: string, password: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
-  addXP: (amount: number, reason: string) => Promise<{ xpGained?: number; newLevel?: boolean }>
-  refreshProfile: () => Promise<void>
+  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>
+  addXP: (amount: number, reason?: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
         loadUserProfile(session.user.id)
-      } else {
-        setLoading(false)
       }
+      setLoading(false)
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
         await loadUserProfile(session.user.id)
       } else {
         setUserProfile(null)
-        setLoading(false)
       }
+      setLoading(false)
     })
 
     return () => subscription.unsubscribe()
@@ -63,63 +68,113 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await getUserProfile(userId)
-      if (error && error.message.includes("No rows")) {
-        // Profile doesn't exist, this is handled in signUp
-        setLoading(false)
-        return
+      const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", userId).single()
+
+      if (error && error.code === "PGRST116") {
+        // Profile doesn't exist, create one
+        const newProfile = {
+          user_id: userId,
+          xp: 25, // Welcome bonus
+          level: 1,
+          streak: 1,
+          last_activity: new Date().toISOString(),
+          total_mindmaps: 0,
+          total_nodes: 0,
+        }
+
+        const { data: createdProfile, error: createError } = await supabase
+          .from("user_profiles")
+          .insert(newProfile)
+          .select()
+          .single()
+
+        if (!createError && createdProfile) {
+          setUserProfile(createdProfile)
+        }
+      } else if (!error && data) {
+        // Update streak based on last activity
+        const currentStreak = calculateStreak(data.last_activity)
+        if (currentStreak !== data.streak) {
+          const { data: updatedProfile } = await supabase
+            .from("user_profiles")
+            .update({
+              streak: currentStreak,
+              last_activity: new Date().toISOString(),
+            })
+            .eq("user_id", userId)
+            .select()
+            .single()
+
+          if (updatedProfile) {
+            setUserProfile(updatedProfile)
+          }
+        } else {
+          setUserProfile(data)
+        }
       }
-      if (data) {
+    } catch (err) {
+      console.error("Error loading user profile:", err)
+    }
+  }
+
+  const updateUserProfile = async (updates: Partial<UserProfile>) => {
+    if (!user || !userProfile) return
+
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id)
+        .select()
+        .single()
+
+      if (!error && data) {
         setUserProfile(data)
       }
-    } catch (error) {
-      console.error("Error loading profile:", error)
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      console.error("Error updating user profile:", err)
+    }
+  }
+
+  const addXP = async (amount: number, reason?: string) => {
+    if (!userProfile) return
+
+    const newXP = userProfile.xp + amount
+    const newLevel = getUserLevel(newXP).level
+
+    await updateUserProfile({
+      xp: newXP,
+      level: newLevel,
+      last_activity: new Date().toISOString(),
+    })
+
+    console.log(`+${amount} XP${reason ? ` for ${reason}` : ""}`)
+  }
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      return { error: error?.message }
+    } catch (err) {
+      return { error: "Network error - please try again" }
     }
   }
 
   const signUp = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
       })
-
-      if (error) {
-        return { error: error.message }
-      }
-
-      if (data.user) {
-        // Create user profile
-        const { error: profileError } = await createUserProfile(data.user.id, email)
-        if (profileError) {
-          console.error("Error creating profile:", profileError)
-        } else {
-          await loadUserProfile(data.user.id)
-        }
-      }
-
-      return {}
-    } catch (error) {
-      return { error: "An unexpected error occurred" }
-    }
-  }
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        return { error: error.message }
-      }
-
-      return {}
-    } catch (error) {
-      return { error: "An unexpected error occurred" }
+      return { error: error?.message }
+    } catch (err) {
+      return { error: "Network error - please try again" }
     }
   }
 
@@ -127,39 +182,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
   }
 
-  const addXP = async (amount: number, reason: string) => {
-    if (!user) return {}
-
-    try {
-      const result = await updateUserXP(user.id, amount, reason)
-      if (result.data) {
-        setUserProfile(result.data)
-      }
-      return { xpGained: result.xpGained, newLevel: result.newLevel }
-    } catch (error) {
-      console.error("Error adding XP:", error)
-      return {}
-    }
-  }
-
-  const refreshProfile = async () => {
-    if (user) {
-      await loadUserProfile(user.id)
-    }
-  }
-
-  const value = {
-    user,
-    userProfile,
-    loading,
-    signUp,
-    signIn,
-    signOut,
-    addXP,
-    refreshProfile,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        userProfile,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        updateUserProfile,
+        addXP,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

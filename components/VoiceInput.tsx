@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Mic, MicOff, Volume2 } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/context/AuthContext"
 
 interface VoiceInputProps {
@@ -11,7 +10,7 @@ interface VoiceInputProps {
   disabled?: boolean
 }
 
-export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
+export default function VoiceInput({ onTranscript, disabled = false }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
   const [transcript, setTranscript] = useState("")
@@ -94,85 +93,41 @@ export function VoiceInput({ onTranscript, disabled }: VoiceInputProps) {
   }
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-        <Button
-          variant={isListening ? "destructive" : "outline"}
-          size="lg"
-          className={`relative h-16 w-16 rounded-full ${
-            isListening ? "bg-red-600 hover:bg-red-700 border-red-500" : "border-gray-600 hover:bg-gray-800"
-          }`}
-          onMouseDown={startListening}
-          onMouseUp={stopListening}
-          onMouseLeave={stopListening}
-          onTouchStart={startListening}
-          onTouchEnd={stopListening}
-          disabled={disabled}
-        >
-          <AnimatePresence mode="wait">
-            {isListening ? (
-              <motion.div
-                key="listening"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="flex items-center justify-center"
-              >
-                <MicOff className="w-6 h-6" />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="idle"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0 }}
-                className="flex items-center justify-center"
-              >
-                <Mic className="w-6 h-6" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+    <div className="flex flex-col items-center gap-4">
+      <Button
+        variant={isListening ? "destructive" : "outline"}
+        size="lg"
+        className={`relative h-16 w-16 rounded-full transition-all duration-200 ${
+          isListening ? "bg-red-600 hover:bg-red-700 border-red-500 animate-pulse" : "border-gray-600 hover:bg-gray-800"
+        }`}
+        onMouseDown={startListening}
+        onMouseUp={stopListening}
+        onMouseLeave={stopListening}
+        onTouchStart={startListening}
+        onTouchEnd={stopListening}
+        disabled={disabled}
+      >
+        {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
 
-          {/* Pulsing animation when listening */}
-          {isListening && (
-            <motion.div
-              className="absolute inset-0 rounded-full border-2 border-red-400"
-              animate={{
-                scale: [1, 1.5, 1],
-                opacity: [1, 0, 1],
-              }}
-              transition={{
-                duration: 1.5,
-                repeat: Number.POSITIVE_INFINITY,
-                ease: "easeInOut",
-              }}
-            />
-          )}
-        </Button>
-      </motion.div>
+        {/* Pulsing ring when listening */}
+        {isListening && <div className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping" />}
+      </Button>
 
       <div className="text-center">
-        <div className="text-sm font-medium text-gray-300">{isListening ? "Listening..." : "Hold to Record"}</div>
+        <div className="text-sm font-medium text-gray-300">{isListening ? "Release to stop" : "Hold to record"}</div>
         <div className="text-xs text-gray-500 mt-1">+3 XP for voice input</div>
       </div>
 
       {/* Live transcript display */}
-      <AnimatePresence>
-        {isListening && transcript && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="mt-2 p-3 bg-gray-800/50 border border-gray-700 rounded-lg max-w-md"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Volume2 className="w-4 h-4 text-blue-400" />
-              <span className="text-sm font-medium text-blue-400">Live Transcript</span>
-            </div>
-            <p className="text-sm text-gray-300">{transcript}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isListening && transcript && (
+        <div className="mt-2 p-3 bg-gray-800/50 border border-gray-700 rounded-lg max-w-md">
+          <div className="flex items-center gap-2 mb-1">
+            <Volume2 className="w-4 h-4 text-blue-400" />
+            <span className="text-sm font-medium text-blue-400">Live Transcript</span>
+          </div>
+          <p className="text-sm text-gray-300">{transcript}</p>
+        </div>
+      )}
     </div>
   )
 }
