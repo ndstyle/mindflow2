@@ -1,50 +1,62 @@
 "use client"
 
 import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
-import { supabase, getUserLevel, calculateStreak } from "@/lib/supabase"
-import type { User, Session } from "@supabase/supabase-js"
+import type { User } from "@supabase/supabase-js"
+import { supabase, createUserProfile, getUserProfile } from "@/lib/supabase"
 
 interface UserProfile {
   id: string
-  user_id: string
-  xp: number
-  level: number
-  streak: number
-  last_activity: string
+  email: string
+  total_xp: number
+  current_streak: number
+  last_login: string
   total_mindmaps: number
   total_nodes: number
-  created_at: string
-  updated_at: string
+  xp: number
+  streak: number
 }
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
   userProfile: UserProfile | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<{ error?: string }>
-  signUp: (email: string, password: string) => Promise<{ error?: string }>
+  isDemoMode: boolean
+  signUp: (email: string, password: string) => Promise<{ error: any }>
+  signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
-  updateUserProfile: (updates: Partial<UserProfile>) => Promise<void>
-  addXP: (amount: number, reason?: string) => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isDemoMode, setIsDemoMode] = useState(false)
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
         loadUserProfile(session.user.id)
+      } else {
+        // Demo mode for when no user is signed in
+        setIsDemoMode(true)
+        setUserProfile({
+          id: "demo",
+          email: "demo@example.com",
+          total_xp: 150,
+          current_streak: 3,
+          last_login: new Date().toISOString(),
+          total_mindmaps: 5,
+          total_nodes: 25,
+          xp: 150,
+          streak: 3,
+        })
       }
       setLoading(false)
     })
@@ -53,12 +65,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session)
       setUser(session?.user ?? null)
+
       if (session?.user) {
+        setIsDemoMode(false)
         await loadUserProfile(session.user.id)
       } else {
-        setUserProfile(null)
+        setIsDemoMode(true)
+        setUserProfile({
+          id: "demo",
+          email: "demo@example.com",
+          total_xp: 150,
+          current_streak: 3,
+          last_login: new Date().toISOString(),
+          total_mindmaps: 5,
+          total_nodes: 25,
+          xp: 150,
+          streak: 3,
+        })
       }
       setLoading(false)
     })
@@ -68,137 +92,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", userId).single()
-
-      if (error && error.code === "PGRST116") {
-        // Profile doesn't exist, create one
-        const newProfile = {
-          user_id: userId,
-          xp: 25, // Welcome bonus
-          level: 1,
-          streak: 1,
-          last_activity: new Date().toISOString(),
-          total_mindmaps: 0,
-          total_nodes: 0,
-        }
-
-        const { data: createdProfile, error: createError } = await supabase
-          .from("user_profiles")
-          .insert(newProfile)
-          .select()
-          .single()
-
-        if (!createError && createdProfile) {
-          setUserProfile(createdProfile)
-        }
-      } else if (!error && data) {
-        // Update streak based on last activity
-        const currentStreak = calculateStreak(data.last_activity)
-        if (currentStreak !== data.streak) {
-          const { data: updatedProfile } = await supabase
-            .from("user_profiles")
-            .update({
-              streak: currentStreak,
-              last_activity: new Date().toISOString(),
-            })
-            .eq("user_id", userId)
-            .select()
-            .single()
-
-          if (updatedProfile) {
-            setUserProfile(updatedProfile)
-          }
-        } else {
-          setUserProfile(data)
-        }
-      }
-    } catch (err) {
-      console.error("Error loading user profile:", err)
-    }
-  }
-
-  const updateUserProfile = async (updates: Partial<UserProfile>) => {
-    if (!user || !userProfile) return
-
-    try {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
+      const profile = await getUserProfile(userId)
+      if (profile) {
+        setUserProfile({
+          ...profile,
+          xp: profile.total_xp,
+          streak: profile.current_streak,
         })
-        .eq("user_id", user.id)
-        .select()
-        .single()
-
-      if (!error && data) {
-        setUserProfile(data)
       }
-    } catch (err) {
-      console.error("Error updating user profile:", err)
-    }
-  }
-
-  const addXP = async (amount: number, reason?: string) => {
-    if (!userProfile) return
-
-    const newXP = userProfile.xp + amount
-    const newLevel = getUserLevel(newXP).level
-
-    await updateUserProfile({
-      xp: newXP,
-      level: newLevel,
-      last_activity: new Date().toISOString(),
-    })
-
-    console.log(`+${amount} XP${reason ? ` for ${reason}` : ""}`)
-  }
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      return { error: error?.message }
-    } catch (err) {
-      return { error: "Network error - please try again" }
+    } catch (error) {
+      console.error("Error loading user profile:", error)
     }
   }
 
   const signUp = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-      return { error: error?.message }
-    } catch (err) {
-      return { error: "Network error - please try again" }
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
+
+    if (!error && data.user) {
+      // Create user profile with welcome XP
+      await createUserProfile(data.user.id, email)
+      await loadUserProfile(data.user.id)
     }
+
+    return { error }
+  }
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    return { error }
   }
 
   const signOut = async () => {
     await supabase.auth.signOut()
+    setUser(null)
+    setUserProfile(null)
   }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        userProfile,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        updateUserProfile,
-        addXP,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
+  const refreshProfile = async () => {
+    if (user) {
+      await loadUserProfile(user.id)
+    }
+  }
+
+  const value = {
+    user,
+    userProfile,
+    loading,
+    isDemoMode,
+    signUp,
+    signIn,
+    signOut,
+    refreshProfile,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

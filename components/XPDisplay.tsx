@@ -1,63 +1,52 @@
 "use client"
 
-import { useAuth } from "@/context/AuthContext"
-import { getUserLevel } from "@/lib/supabase"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Flame, Star, Trophy } from "lucide-react"
+import { Star, Zap } from "lucide-react"
+import { getUserLevel, getXPToNextLevel } from "@/lib/supabase"
 
-export default function XPDisplay() {
-  const { userProfile } = useAuth()
+interface XPDisplayProps {
+  currentXP: number
+  className?: string
+}
 
-  if (!userProfile) {
-    return null
-  }
-
-  const levelInfo = getUserLevel(userProfile.xp)
+export default function XPDisplay({ currentXP, className }: XPDisplayProps) {
+  const levelInfo = getUserLevel(currentXP)
+  const xpToNext = getXPToNextLevel(currentXP)
 
   return (
-    <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 space-y-3">
-      {/* Level and XP */}
-      <div className="flex items-center justify-between">
+    <div
+      className={`bg-gradient-to-r from-purple-500/10 to-blue-500/10 p-4 rounded-lg border border-purple-500/20 ${className}`}
+    >
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-yellow-400" />
-          <div>
-            <div className="text-sm font-medium text-white">Level {levelInfo.level}</div>
-            <div className={`text-xs ${levelInfo.color}`}>{levelInfo.name}</div>
+          <Star className="w-5 h-5" style={{ color: levelInfo.color }} />
+          <Badge variant="outline" style={{ borderColor: levelInfo.color, color: levelInfo.color }}>
+            Level {levelInfo.level}
+          </Badge>
+          <span className="text-sm font-medium">{levelInfo.name}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Zap className="w-4 h-4 text-yellow-500" />
+          <span className="font-bold">{currentXP} XP</span>
+        </div>
+      </div>
+
+      {xpToNext > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>Progress to Level {levelInfo.level + 1}</span>
+            <span>{xpToNext} XP needed</span>
           </div>
+          <Progress value={levelInfo.progress} className="h-2" />
         </div>
-        <Badge variant="outline" className="border-blue-500/20 text-blue-400">
-          {userProfile.xp} XP
-        </Badge>
-      </div>
+      )}
 
-      {/* Progress Bar */}
-      <div className="space-y-1">
-        <div className="flex justify-between text-xs text-gray-400">
-          <span>Progress to next level</span>
-          <span>{levelInfo.nextLevelXP ? `${userProfile.xp}/${levelInfo.nextLevelXP}` : "Max Level"}</span>
-        </div>
-        <Progress value={levelInfo.progress} className="h-2" />
-      </div>
-
-      {/* Streak */}
-      <div className="flex items-center gap-2">
-        <Flame className="w-4 h-4 text-orange-400" />
-        <span className="text-sm text-gray-300">{userProfile.streak} day streak</span>
-        {userProfile.streak >= 7 && <Star className="w-4 h-4 text-yellow-400" />}
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-800">
+      {xpToNext === 0 && (
         <div className="text-center">
-          <div className="text-lg font-bold text-white">{userProfile.total_mindmaps}</div>
-          <div className="text-xs text-gray-400">Mind Maps</div>
+          <Badge className="bg-yellow-500 text-yellow-900">Max Level Reached!</Badge>
         </div>
-        <div className="text-center">
-          <div className="text-lg font-bold text-white">{userProfile.total_nodes}</div>
-          <div className="text-xs text-gray-400">Nodes Created</div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

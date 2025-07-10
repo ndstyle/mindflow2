@@ -5,53 +5,117 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Check if Supabase is configured
-export function isSupabaseConfigured(): boolean {
-  return !!(
-    supabaseUrl &&
-    supabaseAnonKey &&
-    supabaseUrl !== "your-supabase-url" &&
-    supabaseAnonKey !== "your-supabase-anon-key"
-  )
+// XP and Level System
+export const XP_REWARDS = {
+  CREATE_MINDMAP: 10,
+  VOICE_INPUT: 3,
+  EDIT_NODE: 2,
+  COMPLETE_ONBOARDING: 25,
+  DAILY_STREAK: 5,
 }
 
-// Level system
-export function getUserLevel(xp: number) {
-  const levels = [
-    { level: 1, name: "Seedling Thinker", minXP: 0, color: "text-green-400" },
-    { level: 2, name: "Idea Sprout", minXP: 100, color: "text-blue-400" },
-    { level: 3, name: "Mind Gardener", minXP: 250, color: "text-purple-400" },
-    { level: 4, name: "Thought Architect", minXP: 500, color: "text-orange-400" },
-    { level: 5, name: "Concept Master", minXP: 1000, color: "text-red-400" },
-    { level: 6, name: "Mind Flow Guru", minXP: 2000, color: "text-yellow-400" },
-  ]
+export const LEVELS = [
+  { name: "Seedling Thinker", minXP: 0, color: "#10b981" },
+  { name: "Idea Sprout", minXP: 50, color: "#3b82f6" },
+  { name: "Mind Gardener", minXP: 150, color: "#8b5cf6" },
+  { name: "Thought Architect", minXP: 300, color: "#f59e0b" },
+  { name: "Concept Master", minXP: 500, color: "#ef4444" },
+  { name: "Mind Flow Guru", minXP: 1000, color: "#eab308" },
+]
 
-  for (let i = levels.length - 1; i >= 0; i--) {
-    if (xp >= levels[i].minXP) {
+export function getUserLevel(xp: number) {
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].minXP) {
       return {
-        ...levels[i],
+        ...LEVELS[i],
+        level: i + 1,
         progress:
-          i < levels.length - 1 ? ((xp - levels[i].minXP) / (levels[i + 1].minXP - levels[i].minXP)) * 100 : 100,
-        nextLevelXP: i < levels.length - 1 ? levels[i + 1].minXP : null,
+          i < LEVELS.length - 1 ? ((xp - LEVELS[i].minXP) / (LEVELS[i + 1].minXP - LEVELS[i].minXP)) * 100 : 100,
       }
     }
   }
-
-  return { ...levels[0], progress: 0, nextLevelXP: levels[1].minXP }
+  return { ...LEVELS[0], level: 1, progress: 0 }
 }
 
-// Calculate streak based on last activity
+export function getXPToNextLevel(xp: number) {
+  const currentLevel = getUserLevel(xp)
+  const nextLevelIndex = currentLevel.level
+
+  if (nextLevelIndex >= LEVELS.length) {
+    return 0 // Max level reached
+  }
+
+  return LEVELS[nextLevelIndex].minXP - xp
+}
+
 export function calculateStreak(lastActivity: string): number {
+  const now = new Date()
   const lastDate = new Date(lastActivity)
-  const today = new Date()
-  const diffTime = Math.abs(today.getTime() - lastDate.getTime())
+  const diffTime = Math.abs(now.getTime() - lastDate.getTime())
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
   if (diffDays <= 1) {
     return 1 // Same day or yesterday
-  } else if (diffDays === 2) {
-    return 1 // Reset but give them today
   } else {
     return 1 // Reset streak
   }
+}
+
+// Database functions
+export async function createUserProfile(userId: string, email: string) {
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .insert([
+      {
+        id: userId,
+        email: email,
+        total_xp: XP_REWARDS.COMPLETE_ONBOARDING,
+        current_streak: 1,
+        last_login: new Date().toISOString(),
+      },
+    ])
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error creating user profile:", error)
+    return null
+  }
+
+  return data
+}
+
+export async function getUserProfile(userId: string) {
+  const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId).single()
+
+  if (error) {
+    console.error("Error fetching user profile:", error)
+    return null
+  }
+
+  return data
+}
+
+export async function updateUserXP(userId: string, xpToAdd: number, reason: string) {
+  const profile = await getUserProfile(userId)
+  if (!profile) return null
+
+  const newXP = profile.total_xp + xpToAdd
+
+  const { data, error } = await supabase
+    .from("user_profiles")
+    .update({
+      total_xp: newXP,
+      last_login: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error("Error updating user XP:", error)
+    return null
+  }
+
+  return data
 }
