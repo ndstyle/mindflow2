@@ -55,7 +55,7 @@ export default function MindMapPage() {
         } else {
           // Load from database
           const { data, error } = await supabase
-            .from('mind_maps')
+            .from('mindmaps')
             .select('*')
             .eq('id', id)
             .eq('user_id', user?.id)
@@ -99,7 +99,7 @@ export default function MindMapPage() {
       setSaveSuccess(false)
 
       const { error } = await supabase
-        .from('mind_maps')
+        .from('mindmaps')
         .update({
           nodes: data.nodes,
           edges: data.edges,

@@ -12,11 +12,13 @@ export default function TestConnectionPage() {
 
   const testConnection = async () => {
     try {
-      const { data, error } = await supabase.from('mind_maps').select('id, title').limit(1)
-      if (error) {
-        setMessage(`Connection error: ${error.message}`)
-      } else {
+      const response = await supabase.from('mindmaps').select('id, title').limit(1) as any
+      if (response.error) {
+        setMessage(`Connection error: ${response.error.message}`)
+      } else if (Array.isArray(response.data) && response.data.length > 0) {
         setMessage('✅ Supabase connection successful!')
+      } else {
+        setMessage('❌ No data returned from Supabase!')
       }
     } catch (err) {
       setMessage(`❌ Connection failed: ${err}`)
