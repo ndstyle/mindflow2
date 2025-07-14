@@ -1,6 +1,4 @@
 import { createClient } from "@supabase/supabase-js"
-// @ts-ignore
-import { v4 as uuidv4 } from 'uuid'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -153,7 +151,8 @@ export async function updateUserXP(userId: string, xpToAdd: number, reason: stri
 }
 
 export async function makeMindMapPublic(id: string, userId: string) {
-  const share_token = uuidv4()
+  // Generate a simple random share token
+  const share_token = Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
   const { data, error } = await supabase
     .from('mind_maps')
     .update({ is_public: true, share_token })
