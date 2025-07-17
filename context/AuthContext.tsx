@@ -169,11 +169,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setUser(null)
       setUserProfile(null)
+      // Force reload to clear all state and cookies
+      if (typeof window !== 'undefined') {
+        window.location.reload()
+      }
     } catch (error) {
       console.error('Error in signOut function:', error)
       // Still clear the local state even if there's an error
       setUser(null)
       setUserProfile(null)
+      if (typeof window !== 'undefined') {
+        window.location.reload()
+      }
     }
   }
 

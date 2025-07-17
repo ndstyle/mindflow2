@@ -100,6 +100,14 @@ export async function createUserProfile(userId: string, email: string) {
 
   if (error) {
     console.error("Error creating user profile:", error)
+    if (error.message || error.code || error.details || error.hint) {
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      })
+    }
     return null
   }
 

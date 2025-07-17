@@ -51,11 +51,11 @@ export default function SignupPage() {
   };
 
   return (
-    <main style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
-      <Link href="/" style={{ alignSelf: "flex-start", margin: 16 }}>◄ Home</Link>
-      <form style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 300 }} onSubmit={handleSubmit}>
-        <h1>Sign Up</h1>
-        <p style={{ textAlign: "center", fontSize: "0.8rem", color: "#777" }}>
+    <main className="flex flex-col items-center justify-center min-h-screen bg-black text-white">
+      <Link href="/" className="self-start mb-4 ml-4 text-blue-400 hover:underline">◄ Home</Link>
+      <form className="flex flex-col gap-3 min-w-[300px] bg-gray-900/80 p-8 rounded-xl shadow-lg border border-gray-800" onSubmit={handleSubmit}>
+        <h1 className="text-2xl font-bold mb-2 text-white">Sign Up</h1>
+        <p className="text-center text-xs text-gray-400 mb-2">
           Demo app, please don't use your real email or password
         </p>
         <input
@@ -64,6 +64,7 @@ export default function SignupPage() {
           type="email"
           placeholder="Email"
           required
+          className="px-4 py-2 rounded bg-gray-800 border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <input
           name="password"
@@ -71,10 +72,11 @@ export default function SignupPage() {
           type="password"
           placeholder="Password"
           required
+          className="px-4 py-2 rounded bg-gray-800 border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <button type="submit">Create Account</button>
-        <Link href="/login">Already have an account? Sign In</Link>
-        {status && <p>{status}</p>}
+        <button type="submit" className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded transition">Create Account</button>
+        <Link href="/login" className="text-blue-400 hover:underline text-sm">Already have an account? Sign In</Link>
+        {status && <p className="text-gray-400 text-sm mt-2">{status}</p>}
       </form>
     </main>
   );

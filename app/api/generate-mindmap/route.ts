@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
 import { supabase, isSupabaseConfigured } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,11 +93,24 @@ rules:
     }
 
     // Try to save to DB if possible
-    if (isSupabaseConfigured() && supabase) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (!authError && user) {
+    if (isSupabaseConfigured()) {
+      // Extract access token from cookies (works for Supabase auth v2)
+      const cookieHeader = request.headers.get('cookie') || ''
+      const accessToken = cookieHeader.split(';').find(c => c.trim().startsWith('sb-access-token='))?.split('=')[1]
+      let user = null
+      let supabaseWithAuth = supabase
+      if (accessToken) {
+        supabaseWithAuth = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+          global: { headers: { Authorization: `Bearer ${accessToken}` } }
+        })
+        const { data, error } = await supabaseWithAuth.auth.getUser()
+        if (!error && data?.user) {
+          user = data.user
+        }
+      }
+      if (user) {
         const { title, description } = mindMapData.metadata || {}
-        const { data, error } = await supabase
+        const { data, error } = await supabaseWithAuth
           .from("mind_maps")
           .insert({
             user_id: user.id,
